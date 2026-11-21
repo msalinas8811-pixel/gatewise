@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.20-49';
+const APP_VERSION='2026.11.20-50';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -7678,6 +7678,152 @@ window.GWQR = GWQR;
 .ac-step-vig{margin-bottom:6px}
 .ac-chip{display:inline-block;padding:1px 8px;border-radius:999px;background:rgba(15,118,110,.12);color:var(--pri,#0f766e);font-size:13px;font-weight:800}
 .ac-linea{display:flex;align-items:center;gap:6px;margin-top:4px}
+`;
+  document.head.appendChild(st);
+})();
+
+/* =========================================================
+   MENSAJES ENTRE RESIDENTE Y COBRADOR
+   En cada cobro a domicilio hay una conversación para ponerse de
+   acuerdo en el día y la hora. Cualquiera de los dos puede proponer
+   otro día/hora; el otro la acepta con un toque y queda programada.
+   ========================================================= */
+(function () {
+  const RAP_COB = ['Voy en camino', 'Llego en 15 minutos', 'Estoy afuera de su casa', '¿Puedo pasar hoy?'];
+  const RAP_RES = ['Estoy en casa', 'Prefiero por la tarde', 'Tengo el dinero listo', '¿A qué hora llega?'];
+  const esCob = () => S.user && S.user.rol === 'cobrador';
+  const leidoDe = (v) => (v.leido && v.leido[S.user.id]) || 0;
+  const nuevos = v => (v.chat || []).filter((m, i) => i >= leidoDe(v) && m.de !== S.user.id).length;
+  window.chatCobNuevos = nuevos;
+
+  function destinos(v, deCob) {
+    if (deCob) return usuariosCasa(v.casaId);
+    return v.cobradorId ? [v.cobradorId] : cobradores().map(u => u.id);
+  }
+  function avisar(v, texto) {
+    const deCob = esCob();
+    notificar(destinos(v, deCob), deCob ? '💬 Mensaje del cobrador' : '💬 ' + casaNom(v.casaId) + ' · cobro a domicilio', texto, { tab: deCob ? 'pagos' : 'inicio' });
+  }
+  function tomar(v) { if (esCob() && !v.cobradorId) v.cobradorId = S.user.id; }
+  const cuando = v => `${fFecha(v.fecha)} · ${v.hora ? 'a las ' + v.hora : FRANJAS[v.franja]}`;
+  window.cobCuando = cuando;
+
+  function burbuja(v, m, i, ultimaProp) {
+    const mio = m.de === S.user.id; const u = usuario(m.de);
+    const quien = mio ? 'Tú' : (u ? (u.rol === 'cobrador' ? 'Cobrador · ' + u.nombre.split(' ')[0] : u.nombre.split(' ')[0]) : '');
+    let cuerpo = esc(m.texto || '');
+    if (m.prop) {
+      const p = m.prop; const est = p.estado || 'pendiente';
+      cuerpo = `<div class="cc-prop"><b>${ic('calendar', 16)} Propone: ${fFecha(p.fecha)} · ${p.hora ? 'a las ' + esc(p.hora) : FRANJAS[p.franja]}</b>${m.texto ? `<div>${esc(m.texto)}</div>` : ''}
+        ${est === 'aceptada' ? `<span class="chip ok">Aceptada</span>` : est === 'reemplazada' ? `<span class="chip">Reemplazada</span>` : !mio && i === ultimaProp ? `<button class="btn ok smb" onclick="ccAceptar('${v.id}',${i})">${ic('check', 16)} Aceptar este día y hora</button>` : `<span class="chip warn">Esperando respuesta</span>`}</div>`;
+    }
+    if (m.sys) return `<div class="cc-sys">${esc(m.texto)}</div>`;
+    return `<div class="cc-m ${mio ? 'yo' : 'otro'}"><small>${esc(quien)} · ${hora(m.f)}${m.f.slice(0, 10) !== ymd() ? ' · ' + fFecha(m.f.slice(0, 10)) : ''}</small><div class="cc-b">${cuerpo}</div></div>`;
+  }
+
+  window.ccAbrir = function (id) {
+    const v = DB.visitasCobro.find(x => x.id === id); if (!v) return;
+    v.chat = v.chat || []; v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length; save();
+    const ultimaProp = v.chat.map((m, i) => m.prop && (m.prop.estado || 'pendiente') === 'pendiente' ? i : -1).reduce((a, b) => Math.max(a, b), -1);
+    const otro = esCob() ? (usuario(casa(v.casaId).duenoId) || {}).nombre || casaNom(v.casaId) : (v.cobradorId ? (usuario(v.cobradorId) || {}).nombre : 'Cobrador (por asignar)');
+    const rap = esCob() ? RAP_COB : RAP_RES;
+    sheet('Coordinar cobro', `<div class="cc-head"><div><b>${esc(otro || '')}</b><small>${casaNom(v.casaId)} · ${money(montoVisita(v))}</small></div><span class="chip info">${cuando(v)}</span></div>
+      <div class="cc-list" id="ccList">${v.chat.length ? v.chat.map((m, i) => burbuja(v, m, i, ultimaProp)).join('') : `<p class="note" style="text-align:center">Escríbanse aquí para ponerse de acuerdo en el día y la hora.</p>`}</div>
+      <div class="cc-rap">${rap.map(t => `<button type="button" onclick="ccEnviar('${v.id}',this.textContent)">${esc(t)}</button>`).join('')}</div>
+      <form class="cc-form" onsubmit="event.preventDefault();ccEnviar('${v.id}',this.t.value)"><input name="t" placeholder="Escribe un mensaje" autocomplete="off" aria-label="Mensaje" maxlength="400"><button class="btn" aria-label="Enviar">${ic('send', 18)}</button></form>
+      <button class="btn ghost block" onclick="ccProponer('${v.id}')">${ic('calendar', 18)} Proponer otro día y hora</button>`);
+    setTimeout(() => { const l = document.getElementById('ccList'); if (l) l.scrollTop = l.scrollHeight; }, 30);
+  };
+  window.ccEnviar = function (id, t) {
+    t = String(t || '').trim(); if (!t) return;
+    const v = DB.visitasCobro.find(x => x.id === id); if (!v) return;
+    tomar(v); v.chat = v.chat || []; v.chat.push({ de: S.user.id, texto: t, f: nowISO() });
+    v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length;
+    avisar(v, t); save(); render(); ccAbrir(id);
+  };
+  window.ccProponer = function (id) {
+    const v = DB.visitasCobro.find(x => x.id === id); if (!v) return;
+    sheet('Proponer día y hora', `<form onsubmit="ccPropOk(event,'${id}')"><div class="two"><label class="f">Día<input name="fecha" type="date" min="${ymd()}" value="${v.fecha < ymd() ? ymd() : v.fecha}" required></label><label class="f">Hora (opcional)<input name="hora" type="time" value="${esc(v.hora || '')}"></label></div>
+      <label class="f">Horario<select name="franja">${Object.entries(FRANJAS).map(([k, l]) => `<option value="${k}" ${v.franja === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">Mensaje (opcional)<input name="t" placeholder="Ej. Ese día no estoy, ¿puede el jueves?" maxlength="200"></label>
+      <button class="btn block big-ok">Enviar propuesta</button><button type="button" class="btn ghost block" onclick="ccAbrir('${id}')">Volver a los mensajes</button></form>`);
+  };
+  window.ccPropOk = function (e, id) {
+    e.preventDefault(); const f = new FormData(e.target); const v = DB.visitasCobro.find(x => x.id === id); if (!v) return;
+    tomar(v); v.chat = v.chat || [];
+    v.chat.forEach(m => { if (m.prop && (m.prop.estado || 'pendiente') === 'pendiente') m.prop.estado = 'reemplazada'; });
+    const prop = { fecha: f.get('fecha'), hora: f.get('hora') || '', franja: f.get('franja'), estado: 'pendiente' };
+    v.chat.push({ de: S.user.id, texto: String(f.get('t') || '').trim(), prop, f: nowISO() });
+    v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length;
+    avisar(v, `Propone cambiar el cobro a: ${fFecha(prop.fecha)} · ${prop.hora ? 'a las ' + prop.hora : FRANJAS[prop.franja]}. Abre los mensajes para aceptar.`);
+    save(); render(); ccAbrir(id); toast('Propuesta enviada');
+  };
+  window.ccAceptar = function (id, i) {
+    const v = DB.visitasCobro.find(x => x.id === id); const m = v && v.chat && v.chat[i]; if (!m || !m.prop) return;
+    tomar(v); m.prop.estado = 'aceptada'; v.fecha = m.prop.fecha; v.franja = m.prop.franja; v.hora = m.prop.hora || '';
+    const txt = 'Acordado: ' + cuando(v); v.chat.push({ de: S.user.id, sys: true, texto: txt, f: nowISO() });
+    v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length;
+    avisar(v, txt + '.'); save(); render(); ccAbrir(id); toast('Día y hora confirmados');
+  };
+
+  const boton = (v) => { const n = nuevos(v); const t = (v.chat || []).length; return `<button class="btn ${n ? '' : 'ghost'} smb cc-btn" onclick="ccAbrir('${v.id}')">${ic('chat', 16)} ${t ? 'Mensajes' : 'Coordinar día y hora'}${n ? ` <span class="cc-n">${n}</span>` : ''}</button>`; };
+
+  /* residente: tarjeta del cobro programado */
+  if (typeof visitaRes === 'function') {
+    const bvr = visitaRes;
+    visitaRes = function (cid) {
+      let h = bvr.apply(this, arguments); if (typeof h !== 'string') return h;
+      DB.visitasCobro.filter(v => v.casaId === cid && v.estado === 'pendiente').forEach(v => {
+        h = h.replace(`<button class="btn ghost smb" onclick="cancelarVisita('${v.id}')">`, boton(v) + `<button class="btn ghost smb" onclick="cancelarVisita('${v.id}')">`);
+        if (v.hora) h = h.replace(`${fFecha(v.fecha)} · ${FRANJAS[v.franja]}`, `${fFecha(v.fecha)} · a las ${esc(v.hora)}`);
+      });
+      return h;
+    };
+    window.visitaRes = visitaRes;
+  }
+  /* cobrador: tarjeta de la ruta */
+  if (typeof visitaCard === 'function') {
+    const bvc = visitaCard;
+    visitaCard = function (v) {
+      let h = bvc.apply(this, arguments); if (typeof h !== 'string' || !v) return h;
+      h = h.replace(`<div class="btns"><button class="btn ok" onclick="cobrarCasa(`, `<div class="btns cc-btns">${boton(v)}<button class="btn ok" onclick="cobrarCasa(`);
+      if (v.hora) h = h.replace(chip(FRANJAS[v.franja]), chip('A las ' + v.hora, 'info'));
+      return h;
+    };
+    window.visitaCard = visitaCard;
+  }
+  /* aviso en el inicio del residente si hay mensajes sin leer */
+  ['residente', 'inquilino'].forEach(r => {
+    const V = VIEWS[r]; if (!V || !V.inicio) return; const b = V.inicio;
+    V.inicio = function () {
+      const h = b.apply(this, arguments);
+      try {
+        if (!S.user || !S.user.casaId || typeof h !== 'string') return h;
+        const L = DB.visitasCobro.filter(v => v.casaId === S.user.casaId && v.estado === 'pendiente' && nuevos(v));
+        if (!L.length) return h;
+        const a = `<button class="cc-alerta" onclick="ccAbrir('${L[0].id}')">${ic('chat', 22)}<span><b>El cobrador te escribió</b><small>Toca para ver el mensaje y confirmar día y hora</small></span><span class="cc-n">${nuevos(L[0])}</span></button>`;
+        const i = h.indexOf('<div class="ez-big"'); return i >= 0 ? h.slice(0, i) + a + h.slice(i) : a + h;
+      } catch (e) { return h; }
+    };
+  });
+
+  const st = document.createElement('style'); st.id = 'gw-chatcob-css';
+  st.textContent = `
+.cc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.cc-head b{display:block;font-size:16px}.cc-head small{color:var(--muted)}
+.cc-list{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;padding:10px;border-radius:16px;background:var(--bg,#f4f7f6);margin-bottom:10px}
+.cc-m{display:flex;flex-direction:column;max-width:84%}.cc-m.yo{align-self:flex-end;align-items:flex-end}.cc-m.otro{align-self:flex-start}
+.cc-m small{font-size:12px;color:var(--muted);margin:0 4px 2px}
+.cc-b{padding:10px 12px;border-radius:16px;font-size:16px;line-height:1.4;background:var(--card,#fff);border:1px solid var(--line);word-wrap:break-word;overflow-wrap:anywhere}
+.cc-m.yo .cc-b{background:#0f766e;color:#fff;border-color:#0f766e;border-bottom-right-radius:6px}.cc-m.otro .cc-b{border-bottom-left-radius:6px}
+.cc-prop{display:flex;flex-direction:column;gap:6px}.cc-prop b{display:flex;align-items:center;gap:6px}.cc-m.yo .cc-prop .chip{background:rgba(255,255,255,.2);color:#fff}
+.cc-sys{align-self:center;font-size:13.5px;font-weight:700;color:#15803d;background:rgba(21,128,61,.1);padding:6px 12px;border-radius:999px}
+.cc-rap{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px;scrollbar-width:none}
+.cc-rap button{flex:none;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card,#fff);color:var(--ink,inherit);font:inherit;font-size:14.5px;cursor:pointer}
+.cc-form{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px}.cc-form input{min-height:50px;font-size:16px}.cc-form .btn{min-width:56px}
+.cc-n{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800}
+.cc-btns{display:flex;flex-wrap:wrap;gap:8px}.cc-btns .cc-btn{flex:1 1 100%}
+.cc-alerta{display:flex;align-items:center;gap:12px;width:100%;margin:10px 0;padding:14px;border-radius:18px;border:2px solid #0f766e;background:rgba(15,118,110,.08);color:var(--ink,inherit);font:inherit;text-align:left;cursor:pointer}
+.cc-alerta span:nth-child(2){flex:1;display:flex;flex-direction:column}.cc-alerta b{font-size:17px}.cc-alerta small{color:var(--muted);font-size:14px}
 `;
   document.head.appendChild(st);
 })();
