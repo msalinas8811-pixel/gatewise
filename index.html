@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-62';
+const APP_VERSION='2026.11.21-63';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8473,7 +8473,7 @@ h1,h2,h3,.wrap>h2,.top .tt b,.r7-hero h2,.kpi b,.r7-monto,.hero5 h2,.rs-hero h2,
 .wrap h3::before{background:var(--fr-verde);width:16px;height:4px}
 
 /* Encabezado azul marino con esquinas redondeadas abajo (teléfono) */
-.top{background:var(--bar,#0B1F4D)!important;color:var(--onbar,#fff)!important}
+@media (max-width:1023px){.top{background:var(--bar,#0B1F4D)!important;color:var(--onbar,#fff)!important}}
 @media (max-width:899px){.top{border-radius:0 0 22px 22px;box-shadow:0 10px 24px -14px rgba(11,31,77,.55)!important}}
 
 /* Botones tipo píldora */
@@ -8552,6 +8552,71 @@ input:focus,select:focus,textarea:focus{outline:3px solid color-mix(in srgb,var(
   // color de la barra del teléfono
   try { const m = document.querySelector('meta[name=theme-color]'); if (m && /0f766e/i.test(m.content)) m.content = '#0B1F4D'; } catch (e) { }
   if (typeof setThemeMeta === 'function') { const b = setThemeMeta; setThemeMeta = function (c) { return b(/^#0f766e$/i.test(c) ? '#0B1F4D' : c); }; }
+})();
+
+/* =========================================================
+   ANIMACIONES (Propuesta 5 · Fresco animado)
+   Rápidas (menos de medio segundo), suaves y con sentido:
+   - Portería: cada número "salta" al escribirlo; el resultado entra
+     deslizándose; si NO puede pasar, la tarjeta tiembla.
+   - Hojas (ventanas de abajo): suben como en las apps nativas.
+   - Residente: los botones grandes entran uno tras otro y la
+     palomita de "Estás al día" aparece con un pequeño rebote.
+   - La campanita late dos veces al entrar si hay avisos.
+   - El código QR del pase aparece con un pequeño "pop".
+   Todo se apaga si el teléfono tiene "reducir movimiento".
+   ========================================================= */
+(function () {
+  const st = document.createElement('style'); st.id = 'gw-anim-css';
+  st.textContent = `
+@keyframes gwaPop{0%{transform:scale(.55);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+@keyframes gwaSlide{from{opacity:0;transform:translateY(-10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes gwaShake{0%,100%{transform:none}20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+@keyframes gwaSheet{from{transform:translateY(100%)}to{transform:none}}
+@keyframes gwaFade{from{opacity:0}to{opacity:1}}
+@keyframes gwaIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes gwaPing{0%{box-shadow:0 0 0 0 rgba(255,197,61,.75)}100%{box-shadow:0 0 0 12px rgba(255,197,61,0)}}
+
+/* Portería */
+.vz-disp span:last-child{display:inline-block;animation:gwaPop .3s cubic-bezier(.23,1,.32,1) both}
+.vz-res{animation:gwaSlide .32s cubic-bezier(.23,1,.32,1) both}
+.vz-res .vz-ri{animation:gwaPop .42s cubic-bezier(.23,1,.32,1) .08s both}
+.vz-res.bad{animation:gwaSlide .3s cubic-bezier(.23,1,.32,1) both,gwaShake .42s cubic-bezier(.36,.07,.19,.97) .3s both}
+.vz-keys button{transition:transform 120ms cubic-bezier(.23,1,.32,1),background-color 120ms ease}
+.vz-keys button:active{transform:scale(.94)}
+
+/* Hojas que suben desde abajo (teléfono) */
+.ov{animation:gwaFade .22s ease-out both}
+@media (max-width:1023px){.sheet{animation:gwaSheet .42s cubic-bezier(.32,.72,0,1) both!important}}
+
+/* Residente: botones grandes uno tras otro y palomita con rebote */
+.pg-in .ez-big>*{animation:gwaIn .42s cubic-bezier(.23,1,.32,1) both}
+.pg-in .ez-big>*:nth-child(1){animation-delay:.12s}.pg-in .ez-big>*:nth-child(2){animation-delay:.17s}
+.pg-in .ez-big>*:nth-child(3){animation-delay:.22s}.pg-in .ez-big>*:nth-child(4){animation-delay:.27s}
+.pg-in .ez-big>*:nth-child(5){animation-delay:.32s}.pg-in .ez-big>*:nth-child(n+6){animation-delay:.36s}
+.pg-in .r7-ei{animation:gwaPop .45s cubic-bezier(.23,1,.32,1) .3s both}
+
+/* QR del pase */
+.sheet svg[aria-label="Código QR"]{animation:gwaPop .38s cubic-bezier(.23,1,.32,1) .15s both}
+
+/* Campanita al entrar */
+body.gwa-ping .top .badge,body.gwa-ping .top .nb{animation:gwaPing 1.3s ease-out .6s 2}
+
+@media (prefers-reduced-motion:reduce){
+  .vz-disp span,.vz-res,.vz-res .vz-ri,.ov,.sheet,.ez-big>*,.r7-ei,.sheet svg[aria-label="Código QR"],.top .badge,.top .nb{animation:none!important}
+  .vz-keys button{transition:none!important}
+}`;
+  document.head.appendChild(st);
+
+  // La campanita late solo la primera vez que se entra (no en cada pantalla)
+  let quien = '';
+  setInterval(() => {
+    const id = (S && S.user && S.user.id) || '';
+    if (id && id !== quien) {
+      quien = id; document.body.classList.add('gwa-ping');
+      setTimeout(() => document.body.classList.remove('gwa-ping'), 4000);
+    } else if (!id) quien = '';
+  }, 800);
 })();
 
 /* ---------------- Arranque ---------------- */
