@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-53';
+const APP_VERSION='2026.11.21-55';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8152,6 +8152,161 @@ window.GWQR = GWQR;
   document.head.appendChild(st);
 })();
 
+/* =========================================================
+   INVITAR A INSTALAR LA APP (administración)
+   Más → "Invitar a instalar la app":
+   - Enlace oficial de instalación con su código QR.
+   - Compartir por WhatsApp, copiar el enlace o descargar un cartel
+     con el QR para imprimir y pegar en portería o en la caseta.
+   - "Enviar aviso a todos": publica un aviso con el enlace y notifica
+     a residentes, inquilinos, vigilancia y cobradores.
+   - Muestra si el archivo para Android (GateWise.apk) ya está subido.
+   ========================================================= */
+(function () {
+  const enlace = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'instalar.html';
+  window.gwEnlaceInstalar = enlace;
+  const nombreRes = () => (DB && DB.residencial && DB.residencial.nombre) || 'la residencial';
+  const texto = () => `📲 Instala la app de ${nombreRes()}\n\nCon GateWise das acceso a tus visitas, pagas tu cuota, envías reportes y recibes los avisos oficiales.\n\nEntra aquí y sigue los pasos (iPhone, Android o computadora):\n${enlace()}\n\nTu usuario y contraseña te los da la administración.`;
+
+  window.vInvitarApp = function () {
+    const L = enlace();
+    setTimeout(revisarApk, 50);
+    return `<h2>Invitar a instalar la app</h2>
+      <p class="note" style="margin-top:-4px">Comparte este enlace con los vecinos. Ahí están los pasos para iPhone, Android y computadora.</p>
+      <div class="card ia-card">
+        <div class="ia-qr">${typeof GWQR !== 'undefined' ? GWQR.svg(L, { px: 220 }) : ''}</div>
+        <div class="ia-link" id="iaLink">${esc(L)}</div>
+        <div class="ia-btns">
+          <a class="btn ia-wa" href="https://wa.me/?text=${encodeURIComponent(texto())}" target="_blank" rel="noopener">${ic('share', 18)} Enviar por WhatsApp</a>
+          <button class="btn ghost" onclick="iaCopiar()">Copiar enlace</button>
+          <button class="btn ghost" onclick="iaCartel()">${ic('download', 18)} Cartel para imprimir</button>
+        </div>
+      </div>
+      <div class="card ia-apk" id="iaApk"><b>App para Android</b><p class="note" style="margin:4px 0 0">Revisando…</p></div>
+      <h3>Avisar a todos dentro de la app</h3>
+      <p class="note" style="margin-top:-4px">Publica un aviso con el enlace y les llega una notificación a todos los usuarios. Sirve para que lo instalen en otro teléfono o lo compartan con su familia.</p>
+      <button class="btn block big-ok" onclick="iaAviso()">${ic('mega', 18)} Enviar aviso a todos</button>
+      <h3>Cómo se ve el mensaje</h3>
+      <div class="ia-msg">${esc(texto()).replace(/\n/g, '<br>')}</div>`;
+  };
+  async function revisarApk() {
+    const el = document.getElementById('iaApk'); if (!el) return;
+    try {
+      const r = await fetch('GateWise.apk', { method: 'HEAD', cache: 'no-store' });
+      if (r.ok) {
+        const n = +r.headers.get('content-length') || 0; const f = r.headers.get('last-modified');
+        el.innerHTML = `<b>App para Android ${chip('Disponible', 'ok')}</b><p class="note" style="margin:4px 0 0">GateWise.apk${n ? ' · ' + (n / 1048576).toFixed(1) + ' MB' : ''}${f ? ' · subida el ' + new Date(f).toLocaleDateString('es-SV') : ''}. Los vecinos con Android la descargan desde el enlace.</p>`;
+      } else {
+        el.innerHTML = `<b>App para Android ${chip('Sin subir', 'warn')}</b><p class="note" style="margin:4px 0 0">Todavía no se ha subido el archivo de Android. Mientras tanto, la página de instalación enseña a instalarla desde Chrome, que funciona igual.</p>`;
+      }
+    } catch (e) { el.innerHTML = `<b>App para Android</b><p class="note" style="margin:4px 0 0">No se pudo revisar (sin internet).</p>`; }
+  }
+  window.iaCopiar = async function () {
+    try { await navigator.clipboard.writeText(enlace()); toast('Enlace copiado'); }
+    catch (e) { const el = document.getElementById('iaLink'); if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } toast('Mantén presionado el enlace para copiarlo'); }
+  };
+  window.iaCartel = function () {
+    if (typeof GWQR === 'undefined') return;
+    const L = enlace(); const { size, M } = GWQR.encode(L);
+    const W = 1240, H = 1754; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    const grd = g.createLinearGradient(0, 0, W, 420); grd.addColorStop(0, '#0b3b3a'); grd.addColorStop(1, '#0f766e'); g.fillStyle = grd; g.fillRect(0, 0, W, 420);
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = 'bold 92px system-ui,sans-serif'; g.fillText('Instala la app', W / 2, 190);
+    g.font = '48px system-ui,sans-serif'; g.fillText(nombreRes(), W / 2, 290);
+    const q = 760, mod = Math.floor(q / (size + 8)), qs = mod * (size + 8), x0 = (W - qs) / 2, y0 = 500;
+    g.fillStyle = '#000'; for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (M[y][x]) g.fillRect(x0 + (x + 4) * mod, y0 + (y + 4) * mod, mod, mod);
+    g.fillStyle = '#0b3b3a'; g.font = 'bold 58px system-ui,sans-serif'; g.fillText('Escanea con la cámara del teléfono', W / 2, y0 + qs + 110);
+    g.fillStyle = '#334'; g.font = '40px system-ui,sans-serif';
+    ['Da acceso a tus visitas · Paga tu cuota', 'Envía reportes · Recibe los avisos oficiales', '', 'iPhone · Android · Computadora'].forEach((t, i) => g.fillText(t, W / 2, y0 + qs + 200 + i * 60));
+    g.fillStyle = '#55666a'; g.font = '30px system-ui,sans-serif'; g.fillText(L, W / 2, H - 80);
+    c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cartel-instalar-gatewise.png'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); toast('Cartel descargado'); }, 'image/png');
+  };
+  window.iaAviso = function () {
+    sheet('¿Enviar aviso a todos?', `<p>Se publicará un aviso con el enlace de instalación y les llegará una notificación a todos los usuarios activos.</p>
+      <button class="btn block big-ok" onclick="iaAvisoOk()">Sí, enviar</button><button class="btn ghost block" onclick="closeSheet()">Cancelar</button>`);
+  };
+  window.iaAvisoOk = function () {
+    const L = enlace();
+    const a = { id: uid(), categoria: 'general', titulo: '📲 Instala la app GateWise', cuerpo: `Instala la app de ${nombreRes()} en tu teléfono (iPhone, Android o computadora). Sigue los pasos en este enlace:\n${L}\n\nTambién puedes compartirlo con tu familia. Tu usuario y contraseña te los da la administración.`, cuando: '', prioridad: 'normal', fecha: nowISO(), enlace: L };
+    DB.avisos.unshift(a);
+    const ids = DB.usuarios.filter(u => u.activo !== false && u.rol !== 'admin').map(u => u.id);
+    notificar(ids, '📲 Instala la app GateWise', 'Toca para ver el enlace de instalación', { tab: 'avisos' });
+    save(); closeSheet(); render(); toast('Aviso enviado a ' + ids.length + ' usuarios');
+  };
+
+  if (VIEWS.admin) {
+    VIEWS.admin.instalarApp = vInvitarApp;
+    const bm = VIEWS.admin.mas;
+    if (bm) VIEWS.admin.mas = function () { const h = bm.apply(this, arguments); if (typeof h !== 'string' || h.includes("go('instalarApp')")) return h; const it = menuItem('share', 'Invitar a instalar la app', "go('instalarApp')"); const i = h.indexOf('</h2>'); return i >= 0 ? h.slice(0, i + 5) + it + h.slice(i + 5) : it + h; };
+  }
+  if (typeof BACK !== 'undefined') BACK.instalarApp = 'mas';
+
+  const st = document.createElement('style'); st.id = 'gw-invitar-css';
+  st.textContent = `.ia-card{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.ia-qr svg{width:220px;height:220px;max-width:64vw;border-radius:14px;background:#fff;padding:6px;border:1px solid var(--line)}
+.ia-link{font-size:14px;color:var(--muted);overflow-wrap:anywhere;user-select:all}
+.ia-btns{display:grid;grid-template-columns:1fr;gap:8px;width:100%}
+.ia-wa{background:#15803d!important;border-color:#15803d!important;color:#fff!important}
+.ia-apk b{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.ia-msg{padding:14px;border-radius:14px;background:var(--bg,#f4f7f6);border:1px solid var(--line);font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+@media (min-width:700px){.ia-btns{grid-template-columns:repeat(3,1fr)}}`;
+  document.head.appendChild(st);
+})();
+
+/* =========================================================
+   DEMO PRIVADA (solo el dueño de la app)
+   - La app oficial funciona en producción. El demo solo se abre con
+     ?demo al final del enlace y, antes de mostrar nada, pide entrar con
+     el correo del dueño (msalinas8811@gmail.com) y su contraseña.
+   - Nadie más puede usar el demo: sin esa sesión la pantalla queda
+     bloqueada, aunque conozcan el enlace.
+   ========================================================= */
+(function () {
+  if (window.GATEWISE_MODO === 'produccion') return;
+  const OWN = () => String(window.GATEWISE_OWNER_EMAIL || '').trim().toLowerCase();
+  const esDueno = () => { try { const u = window.firebase && firebase.apps.length && firebase.auth().currentUser; return !!(u && !u.isAnonymous && String(u.email || '').toLowerCase() === OWN()); } catch (e) { return false; } };
+  let abierto = false;
+  function pintar(msg) {
+    if (abierto) return;
+    let g = document.getElementById('demoGate');
+    if (!g) { g = document.createElement('div'); g.id = 'demoGate'; document.body.appendChild(g); }
+    g.innerHTML = `<div class="dg-box"><div class="dg-logo">🔒</div><h2>Demo privada</h2>
+      <p>Esta versión de demostración es solo para el dueño de GateWise.</p>
+      <form onsubmit="dgEntrar(event)"><label class="f">Correo<input name="e" type="email" autocomplete="username" required></label>
+      <label class="f">Contraseña<input name="p" type="password" autocomplete="current-password" required></label>
+      <button class="btn block big-ok" id="dgBtn">Entrar al demo</button></form>
+      <p class="dg-msg">${msg || ''}</p>
+      <a class="btn ghost block" href="./?prod">Ir a la app oficial</a></div>`;
+  }
+  const OK = 'gw_demo_ok';
+  const yaOk = () => { try { const t = +sessionStorage.getItem(OK) || 0; return Date.now() - t < 12 * 3600e3; } catch (e) { return false; } };
+  function abrir() { abierto = true; try { sessionStorage.setItem(OK, String(Date.now())); } catch (e) { } const g = document.getElementById('demoGate'); if (g) g.remove(); try { render(); } catch (e) { } }
+  window.dgEntrar = async function (e) {
+    e.preventDefault(); const f = new FormData(e.target); const em = String(f.get('e') || '').trim().toLowerCase(); const pw = String(f.get('p') || '');
+    const m = document.querySelector('#demoGate .dg-msg'); const b = document.getElementById('dgBtn');
+    if (em !== OWN()) { m.textContent = 'Este demo es privado. Usa la app oficial con tu usuario de la residencial.'; return; }
+    b.disabled = true; m.textContent = 'Verificando…';
+    try { await esperarFirebase(); await firebase.auth().signInWithEmailAndPassword(em, pw); if (esDueno()) abrir(); else m.textContent = 'No autorizado'; }
+    catch (x) { m.textContent = /wrong|invalid|not-found/.test(String(x.code)) ? 'Correo o contraseña incorrectos' : /too-many/.test(String(x.code)) ? 'Demasiados intentos; espera unos minutos' : 'No se pudo entrar: ' + (x.message || x.code); }
+    b.disabled = false;
+  };
+  // Bloquear de inmediato y abrir solo si ya hay sesión del dueño
+  const st = document.createElement('style'); st.id = 'gw-demogate-css';
+  st.textContent = `#demoGate{position:fixed;inset:0;z-index:2147483000;background:linear-gradient(160deg,#0b3b3a,#0f766e);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+#demoGate .dg-box{background:#fff;color:#0f172a;border-radius:20px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+#demoGate .dg-logo{font-size:40px;text-align:center}#demoGate h2{text-align:center;margin:6px 0}#demoGate p{text-align:center;color:#475569}
+#demoGate .dg-msg{min-height:20px;color:#b91c1c;font-weight:600}#demoGate .btn.ghost{margin-top:8px}`;
+  document.head.appendChild(st);
+  if (yaOk()) { abierto = true; return; }
+  pintar();
+  (async () => {
+    try {
+      await esperarFirebase(20000);
+      firebase.auth().onAuthStateChanged(() => { if (esDueno()) abrir(); });
+    } catch (e) { pintar('No hay conexión. El demo necesita internet para verificar al dueño.'); }
+  })();
+})();
+
 /* ---------------- Arranque ---------------- */
 document.addEventListener('input',e=>{const t=e.target;const nm=t&&(t.name||t.id)||'';if(!t||t.type==='file'||!/(^|[._])dui$/i.test(nm)||esCondo()||paisRes()!=='SV')return;const d=t.value.replace(/\D/g,'').slice(0,9);t.value=d.length>8?d.slice(0,8)+'-'+d.slice(8):d});
 if(window.GATEWISE_MODO!=='produccion'){
@@ -8737,17 +8892,30 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
     catch (e) { return toast(e.message || 'No se pudo cargar'); }
     S.tab = 'registro'; S.reto = null; SELFIE = null; render(); window.scrollTo(0, 0);
   };
+  /* Fotos del registro: más livianas para que la solicitud quepa en un solo documento */
+  async function achicarReg(f) {
+    if (!f || !f.data) return f;
+    if (f.tipo !== 'img') { if (f.data.length > 240000) { const e = new Error('El PDF es muy pesado. Mejor sube una foto del documento.'); e.gw = true; throw e; } return f; }
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = f.data; });
+    let lado = Math.min(1100, Math.max(img.width, img.height)), q = 0.78, out = f.data;
+    for (let k = 0; k < 6; k++) {
+      const sc = lado / Math.max(img.width, img.height); const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      out = c.toDataURL('image/jpeg', q); if (out.length <= 220000) break; q = Math.max(0.55, q - 0.08); lado = Math.round(lado * 0.85);
+    }
+    return Object.assign({}, f, { data: out, nombre: String(f.nombre || 'foto').replace(/\.\w+$/, '') + '.jpg' });
+  }
   enviarRegistro = async function (e) {
     e.preventDefault(); const f = new FormData(e.target); const c = casa(f.get('casa'));
     if (!c) return toast('Elige tu casa');
     if (!duiValido(String(f.get('dui')).trim())) return toast('El DUI debe tener 9 dígitos: 00000000-0');
     if (String(f.get('pass') || '').length < 8) return toast('La clave debe tener al menos 8 caracteres');
     if (!SELFIE) return toast('Falta la foto en tiempo real');
-    let doc, duif, foto; try { doc = await leerArchivo(f.get('doc')); duif = await leerArchivo(f.get('duif')); foto = await leerArchivo(f.get('foto')); } catch (x) { return toast('Archivo no válido. Usa foto o PDF'); }
+    let doc, duif, foto, selfie; try { doc = await achicarReg(await leerArchivo(f.get('doc'))); duif = await achicarReg(await leerArchivo(f.get('duif'))); foto = await achicarReg(await leerArchivo(f.get('foto'))); selfie = Object.assign({}, SELFIE, SELFIE.data ? { data: (await achicarReg({ tipo: 'img', data: SELFIE.data })).data } : {}); } catch (x) { return toast(x && x.gw ? x.message : 'Archivo no válido. Usa foto o PDF'); }
     const un = String(f.get('user')).trim().toLowerCase();
     try {
       toast('Enviando…');
-      await llamar('registro', { rid: RES, casaId: c.id, codigo: String(f.get('codigo') || '').trim(), nombre: f.get('nombre'), familia: String(f.get('familia') || '').trim(), dui: f.get('dui'), tel: f.get('tel'), email: f.get('email'), user: un, pass: f.get('pass'), documento: doc, duiFoto: duif, foto, selfie: SELFIE });
+      await llamar('registro', { rid: RES, casaId: c.id, codigo: String(f.get('codigo') || '').trim(), nombre: f.get('nombre'), familia: String(f.get('familia') || '').trim(), dui: f.get('dui'), tel: f.get('tel'), email: f.get('email'), user: un, pass: f.get('pass'), documento: doc, duiFoto: duif, foto, selfie });
     } catch (err) { return toast(err.message || 'No se pudo enviar'); }
     SELFIE = null; S.tab = 'inicio'; DB = esqueleto(RES); render();
     sheet('Solicitud enviada', `<p>Tu solicitud para <b>${casaNom(c.id)}</b> quedó en revisión. La administración validará tus documentos y tu foto, y te avisará. Después podrás ingresar con tu usuario <b>${esc(un)}</b>.</p><button class="btn block" onclick="closeSheet()">Entendido</button>`);

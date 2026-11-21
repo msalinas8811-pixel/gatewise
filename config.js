@@ -18,16 +18,25 @@ window.GATEWISE_OWNER_EMAIL = "msalinas8811@gmail.com";
    "produccion"  → base de datos segura (Firestore + Authentication).
    Cámbialo a "produccion" solo después de seguir PRODUCCION-LEEME.txt.
    ===================================================================== */
-window.GATEWISE_MODO = "demo";
+/* La app oficial funciona en PRODUCCIÓN. El demo privado (solo el dueño)
+   se abre agregando ?demo al enlace; ?prod regresa a la app oficial. */
+window.GATEWISE_MODO = (function () {
+  try {
+    const q = location.search;
+    if (/[?&]prod\b/.test(q)) sessionStorage.removeItem('gw_modo_demo');
+    if (/[?&]demo\b/.test(q)) sessionStorage.setItem('gw_modo_demo', '1');
+    return sessionStorage.getItem('gw_modo_demo') === '1' ? 'demo' : 'produccion';
+  } catch (e) { return 'produccion'; }
+})();
 
 /* Proyecto de producción gatewise-prod (Consola de Firebase › Configuración del proyecto › Tus apps › Web) */
 window.GATEWISE_FIREBASE_PROD = {
-  apiKey: "PEGAR_API_KEY",
+  apiKey: "AIzaSyCZqW1sZ_bjYtLTm3tSKZ4_ffno9WMr6fA",
   authDomain: "gatewise-prod.firebaseapp.com",
   projectId: "gatewise-prod",
   storageBucket: "gatewise-prod.firebasestorage.app",
-  messagingSenderId: "PEGAR_SENDER_ID",
-  appId: "PEGAR_APP_ID"
+  messagingSenderId: "665057983425",
+  appId: "1:665057983425:web:748bd65699ba0f06f04d40"
 };
 
 /* Clave pública de notificaciones (Cloud Messaging › Certificados push web) */
