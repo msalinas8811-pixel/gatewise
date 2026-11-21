@@ -133,18 +133,28 @@ function ver(id){
 (function(){
   var ua=navigator.userAgent||'';
   var q={};try{new URLSearchParams(location.search).forEach(function(v,k){q[k]=v})}catch(e){}
-  // nombre de la residencial (enlace compartido desde la administración)
-  if(q.n){var t=document.getElementById('tit');t.textContent='Instala la app de '+String(q.n).slice(0,80);document.title='Instalar GateWise · '+String(q.n).slice(0,80)}
-  var so=q.so;
+  function titulo(n){if(!n)return;var t=document.getElementById('tit');t.textContent='Instala la app de '+String(n).slice(0,80);document.title='Instalar GateWise · '+String(n).slice(0,80)}
+  titulo(q.n);
+  var so=q.so||({a:'android',i:'iphone',p:'pc'})[q.o];
   if(so==='android'||so==='iphone'||so==='pc')ver(so);
   else if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))ver('iphone');
   else if(!/Android/i.test(ua))ver('pc');
-  // APK subido por la administración (solo se aceptan archivos de la nube oficial de GateWise)
-  var apk=q.apk||'';
-  if(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/gatewise-prod\.(firebasestorage\.app|appspot\.com)\/o\/apk%2F/.test(apk)){document.getElementById('apkBtn').href=apk;return}
+  var RE=/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/gatewise-prod\.(firebasestorage\.app|appspot\.com)\/o\/apk%2F/;
+  function usarApk(u){if(u&&RE.test(u)){document.getElementById('apkBtn').href=u;return true}return false}
+  if(usarApk(q.apk||''))return;
   // si todavía no se ha subido el APK, se muestra solo la opción de Chrome
   function sinApk(){document.getElementById('apkCard').classList.add('oculto');var h=document.getElementById('opc2');if(h)h.textContent='Instalar desde Chrome';}
-  try{fetch('GateWise.apk',{method:'HEAD',cache:'no-store'}).then(function(r){if(!r.ok)sinApk()}).catch(function(){})}catch(e){}
+  function apkPagina(){try{fetch('GateWise.apk',{method:'HEAD',cache:'no-store'}).then(function(r){if(!r.ok)sinApk()}).catch(function(){})}catch(e){}}
+  // La app de Android que publica GateWise y el nombre de la residencial (datos públicos)
+  try{
+    fetch('https://firestore.googleapis.com/v1/projects/gatewise-prod/databases/(default)/documents/plataforma/publico',{cache:'no-store'})
+      .then(function(r){return r.ok?r.json():null})
+      .then(function(j){
+        var o={};try{o=JSON.parse(j.fields.d.stringValue)}catch(e){}
+        if(q.r&&!q.n){var r=(o.residenciales||[]).filter(function(x){return x.id===q.r})[0];if(r)titulo(r.nombre)}
+        if(!usarApk(o.apkApp&&o.apkApp.url))apkPagina();
+      }).catch(apkPagina);
+  }catch(e){apkPagina()}
 })();
 </script>
 </body>

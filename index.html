@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-57';
+const APP_VERSION='2026.11.21-58';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8169,7 +8169,8 @@ window.GWQR = GWQR;
   // La app de Android la publica el Administrador de la APP (una sola para todas las residenciales)
   const apkInfo = () => (PLAT && PLAT.apkApp && PLAT.apkApp.url) ? PLAT.apkApp : null;
   const qs = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
-  const enlace = so => base() + 'instalar.html' + (so ? '?' + qs({ so, n: nombreRes(), apk: so === 'android' && apkInfo() ? apkInfo().url : '' }) : '?' + qs({ n: nombreRes(), apk: apkInfo() ? apkInfo().url : '' }));
+  // Enlaces cortos (caben en el QR): la guía busca sola el nombre de la residencial y la app de Android
+  const enlace = so => base() + 'instalar.html?' + qs({ o: so === 'android' ? 'a' : so === 'iphone' ? 'i' : '', r: (typeof RES !== 'undefined' && RES) || '' });
   window.gwEnlaceInstalar = () => enlace('');
   const textoDe = so => so === 'android'
     ? `📲 *App de ${nombreRes()} para Android*\n\n1. Abre este enlace y toca *Descargar GateWise para Android*:\n${enlace('android')}\n2. Abre el archivo descargado y toca *Instalar* (si lo pide, permite instalar desde esta fuente).\n3. Entra con el usuario y la contraseña que te dio la administración.\n\nEn el enlace están los pasos con detalle.`
@@ -8233,7 +8234,7 @@ window.GWQR = GWQR;
         <div id="iaProg" class="ia-prog oculto"><div></div></div>
         <p class="note" style="margin:8px 0 0">Se genera en Android Studio (Build › Build APK). Máximo 150 MB.</p>
       </div>
-      ${a ? `<h3>Enlace de Android</h3><div class="card"><div class="ia-link" style="user-select:all">${esc(base() + 'instalar.html?so=android&apk=' + encodeURIComponent(a.url))}</div><div class="ia-btns" style="margin-top:10px"><button class="btn ghost" onclick="iaCopiarTxt(this.closest('.card').querySelector('.ia-link').textContent)">Copiar enlace</button><a class="btn ghost" target="_blank" rel="noopener" href="${esc(base() + 'instalar.html?so=android&apk=' + encodeURIComponent(a.url))}">Ver la guía</a></div></div>` : ''}`;
+      ${a ? `<h3>Enlace de Android</h3><div class="card"><div class="ia-link" style="user-select:all">${esc(base() + 'instalar.html?o=a')}</div><div class="ia-btns" style="margin-top:10px"><button class="btn ghost" onclick="iaCopiarTxt(this.closest('.card').querySelector('.ia-link').textContent)">Copiar enlace</button><a class="btn ghost" target="_blank" rel="noopener" href="${esc(base() + 'instalar.html?o=a')}">Ver la guía</a></div></div>` : ''}`;
   };
   window.iaCopiarTxt = async function (t) { try { await navigator.clipboard.writeText(t); toast('Enlace copiado'); } catch (e) { toast('Mantén presionado el enlace para copiarlo'); } };
   window.iaSubirApk = async function (inp) {
