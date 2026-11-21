@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-58';
+const APP_VERSION='2026.11.21-59';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8376,6 +8376,67 @@ window.GWQR = GWQR;
   })();
 })();
 
+/* =========================================================
+   MENÚ DE ABAJO SIEMPRE FIJO EN LOS TELÉFONOS
+   En los celulares el menú de abajo a veces "subía" o se quedaba a media
+   pantalla. Pasaba por dos razones:
+   1. Al escribir, el teclado empuja el menú hacia arriba (Android) o lo
+      deja flotando (iPhone) y a veces no regresaba a su lugar.
+   2. En iPhone, si la pantalla queda ampliada (zoom), el menú flota.
+   Arreglo:
+   - Mientras el teclado está abierto, el menú se esconde; al cerrarlo
+     vuelve a su lugar y se recoloca.
+   - Si la pantalla está ampliada, el menú se esconde hasta volver al
+     tamaño normal.
+   - Ningún campo de texto usa letra menor de 16 px en el teléfono, que
+     es lo que hace que iPhone amplíe la pantalla al tocar un campo.
+   ========================================================= */
+(function () {
+  const tactil = () => window.matchMedia && matchMedia('(pointer:coarse)').matches;
+  const escribe = el => el && (el.tagName === 'TEXTAREA' || el.isContentEditable
+    || (el.tagName === 'INPUT' && !/^(checkbox|radio|file|button|submit|reset|range|color|image|hidden)$/i.test(el.type || ''))
+    || el.tagName === 'SELECT');
+  const vv = window.visualViewport;
+  let alto = window.innerHeight;   // alto de la pantalla sin teclado
+  let raf = 0;
+
+  function recolocar() {
+    // obliga al navegador a volver a calcular la posición del menú
+    const n = document.querySelector('.nav'); if (!n) return;
+    n.style.transform = 'translateZ(0)'; void n.offsetHeight; n.style.transform = '';
+  }
+  function revisar() {
+    raf = 0; if (!tactil()) return;
+    const b = document.body; if (!b) return;
+    const foco = escribe(document.activeElement);
+    const h = vv ? vv.height : window.innerHeight;
+    if (!foco && h > alto) alto = h;
+    const teclado = foco && (h < alto * 0.8 || !vv);
+    const zoom = vv ? vv.scale > 1.05 : false;
+    const antes = b.classList.contains('gw-sin-menu');
+    const ahora = teclado || zoom;
+    if (ahora !== antes) { b.classList.toggle('gw-sin-menu', ahora); if (!ahora) { setTimeout(recolocar, 60); setTimeout(recolocar, 350); } }
+  }
+  const pedir = () => { if (!raf) raf = requestAnimationFrame(revisar); };
+  if (vv) { vv.addEventListener('resize', pedir); vv.addEventListener('scroll', pedir); }
+  window.addEventListener('resize', pedir);
+  window.addEventListener('orientationchange', () => { alto = 0; setTimeout(() => { alto = vv ? vv.height : window.innerHeight; pedir(); recolocar(); }, 400); });
+  document.addEventListener('focusin', e => { if (escribe(e.target)) { pedir(); setTimeout(pedir, 300); } });
+  document.addEventListener('focusout', () => { setTimeout(pedir, 50); setTimeout(pedir, 400); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { alto = 0; setTimeout(() => { alto = vv ? vv.height : window.innerHeight; pedir(); recolocar(); }, 200); } });
+  window.addEventListener('pageshow', () => setTimeout(recolocar, 100));
+
+  const st = document.createElement('style'); st.id = 'gw-menufijo-css';
+  st.textContent = `html{overscroll-behavior-y:none}
+@media (pointer:coarse){
+  .nav{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;transform:translateZ(0);-webkit-transform:translateZ(0);backface-visibility:hidden;transition:transform 180ms ease-out,opacity 180ms ease-out}
+  body.gw-sin-menu .nav{transform:translateY(110%)!important;opacity:0;pointer-events:none}
+  .pv-url,.sb-q input{font-size:16px!important}
+}
+@media (prefers-reduced-motion:reduce){.nav{transition:none!important}}`;
+  document.head.appendChild(st);
+})();
+
 /* ---------------- Arranque ---------------- */
 document.addEventListener('input',e=>{const t=e.target;const nm=t&&(t.name||t.id)||'';if(!t||t.type==='file'||!/(^|[._])dui$/i.test(nm)||esCondo()||paisRes()!=='SV')return;const d=t.value.replace(/\D/g,'').slice(0,9);t.value=d.length>8?d.slice(0,8)+'-'+d.slice(8):d});
 if(window.GATEWISE_MODO!=='produccion'){
@@ -8820,7 +8881,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
       if (!firebase.messaging) await cargarJS(SDK + 'firebase-messaging-compat.js');
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') return toast('Las notificaciones quedaron desactivadas');
-      const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+      const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: './fcm/' }); // ámbito propio: no reemplaza al service worker de la app
       P.msg = P.msg || firebase.messaging();
       const token = await P.msg.getToken({ vapidKey: window.GATEWISE_VAPID, serviceWorkerRegistration: reg });
       if (!token) return toast('No se pudo activar');
@@ -9057,6 +9118,11 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
         await cargarJS(SDK + 'firebase-firestore-compat.js'); await cargarJS(SDK + 'firebase-functions-compat.js');
       }
       P.app = firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
+      // App Check (reCAPTCHA Enterprise / Fraud Defense): prueba que las peticiones vienen de la app oficial y no de robots
+      if (window.GATEWISE_APPCHECK && !/PEGAR/.test(window.GATEWISE_APPCHECK)) {
+        try { if (!firebase.appCheck) await cargarJS(SDK + 'firebase-app-check-compat.js'); firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(window.GATEWISE_APPCHECK), true); }
+        catch (e) { console.warn('App Check', e); }
+      }
       P.auth = firebase.auth(); P.fs = firebase.firestore();
       try { await P.fs.enablePersistence({ synchronizeTabs: true }); } catch (e) { /* otra pestaña o navegador sin soporte */ }
       P.fn = P.app.functions(REGION);

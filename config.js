@@ -40,4 +40,7 @@ window.GATEWISE_FIREBASE_PROD = {
 };
 
 /* Clave pública de notificaciones (Cloud Messaging › Certificados push web) */
-window.GATEWISE_VAPID = "PEGAR_CLAVE_VAPID";
+window.GATEWISE_VAPID = "BJZbp-9SGCd9TZNqZ2AGCEe3zaHquWHzr9zkmKKwlss8tYGmXpBj885XhZe_KpqYUNvU9aQtuEPkAI61tF6Gmj8";
+
+/* App Check (reCAPTCHA Enterprise): clave pública del sitio. Protege contra robots y apps falsas */
+window.GATEWISE_APPCHECK = "6LdZ_CsuAAAAAAPhQdGv22wNmClRw2azVyiXcJX_";
