@@ -1060,6 +1060,11 @@ const todos=()=>DB.usuarios.filter(u=>u.activo).map(u=>u.id);
 function notificar(ids,titulo,texto,accion){const f=nowISO();[...new Set(ids)].forEach(u=>{if(S.user&&u===S.user.id&&S.user.rol==='admin')return;DB.notifs.unshift({id:uid(),userId:u,titulo,texto,fecha:f,leida:false,accion:accion||null})});if(DB.notifs.length>800)DB.notifs.length=800}
 const dentro=p=>{const l=p.ingresos[p.ingresos.length-1];return!!(l&&!l.salida)};
 const vigenteHoy=p=>p.estado==='activo'&&p.desde<=ymd()&&ymd()<=p.hasta;
+const ultIng=p=>p.ingresos[p.ingresos.length-1];
+const dentroViejo=p=>dentro(p)&&String(ultIng(p).entrada).slice(0,10)<ymd()&&p.okDentro!==ymd();
+const dentroHoy=p=>dentro(p)&&(String(ultIng(p).entrada).slice(0,10)>=ymd()||p.okDentro===ymd());
+const completoHoy=p=>!dentro(p)&&p.ingresos.some(i=>i.salida&&String(i.entrada).slice(0,10)===ymd());
+function vencerAutorizaciones(){const h=ymd();let n=0;(DB.autorizaciones||[]).forEach(a=>{if(a.estado==='esperando'&&String(a.fecha||'').slice(0,10)<h){a.estado='vencida';n++}});if(n)save()}
 function estadoPase(p){const h=ymd(),l=p.ingresos[p.ingresos.length-1];
   if(l&&!l.salida)return{l:'Dentro desde '+hora(l.entrada),c:'ok'};
   if(p.estado==='cancelado')return{l:'Cancelado',c:'mut'};
@@ -1403,7 +1408,7 @@ function autCard(a){return `<div class="card" style="border:2px solid var(--warn
 function responderAut(id,ok){const a=DB.autorizaciones.find(x=>x.id===id);if(a.estado!=='esperando')return toast('Ya fue respondida');a.estado=ok?'aprobado':'rechazado';a.respondidoPor=S.user.id;a.fechaResp=nowISO();
   if(ok){const p={id:uid(),casaId:a.casaId,creadoPor:S.user.id,tipo:a.tipo,porton:a.porton||portonDe(a.tipo),nombre:a.nombre,dui:a.dui,detalle:a.motivo,placa:a.placa,horario:'',desde:ymd(),hasta:ymd(),pin:genPin(),estado:'activo',ingresos:[]};DB.pases.push(p);a.paseId=p.id}
   notificar(vigilantes(),ok?'✅ Ingreso autorizado':'⛔ Ingreso rechazado',`${a.nombre} · ${casaNom(a.casaId)} · respondió ${S.user.nombre}`,{tab:'inicio'});save();render();toast(ok?'Ingreso autorizado':'Ingreso rechazado')}
-function vResInicio(){const u=S.user,cid=u.casaId;const aut=DB.autorizaciones.filter(a=>a.casaId===cid&&a.estado==='esperando');
+function vResInicio(){vencerAutorizaciones();const u=S.user,cid=u.casaId;const aut=DB.autorizaciones.filter(a=>a.casaId===cid&&a.estado==='esperando');
   const hoyP=DB.pases.filter(p=>p.casaId===cid&&(vigenteHoy(p)||dentro(p)));
   let h=heroRes5(u);
   h+=aut.map(autCard).join('');h+=recordatoriosRes(u);h+=votHomeRes();
@@ -1432,7 +1437,7 @@ function verPase(id,nuevo){const p=DB.pases.find(x=>x.id===id);const e=estadoPas
   sheet(TIPOS[p.tipo].e+' '+esc(p.nombre),`${nuevo?alertBox('ok','Pase creado','Compártelo con la persona. Vigilancia lo verá en portería.'):''}<div class="card" style="text-align:center"><div class="muted sm">PIN de acceso</div><div class="pin" style="font-size:34px">${p.pin}</div>${chip(e.l,e.c)}</div>
   <div class="kv"><span>Tipo</span><b>${TIPOS[p.tipo].l}</b>${p.detalle?`<span>Detalle</span><b>${esc(p.detalle)}</b>`:''}${p.dui?`<span>DUI</span><b>${esc(p.dui)}</b>`:''}${p.placa?`<span>Placa</span><b>${esc(p.placa)}</b>`:''}<span>Ingresa por</span><b>🚪 ${esc(portonNom(p.porton))}</b><span>Vigencia</span><b>${vigencia(p)}</b>${p.horario?`<span>Horario</span><b>${esc(p.horario)}</b>`:''}<span>Creado por</span><b>${esc(cr?cr.nombre:'')}</b></div>
   ${p.ingresos.length?`<h3>Ingresos</h3>${p.ingresos.slice().reverse().slice(0,10).map(i=>`<div class="chk"><span class="grow">${fFecha(i.entrada)}</span><span class="sm muted">${i.salida?'salió '+hora(i.salida):'dentro'}</span></div>`).join('')}`:''}
-  <div class="btns">${act?`<button class="btn" onclick="compartirPase('${p.id}')">${ic('share',18)} Compartir</button><button class="btn bad" onclick="cancelarPase('${p.id}')">Cancelar pase</button>`:''}</div>`)}
+  <div class="btns">${dentro(p)?`<button class="btn ok" onclick="resYaSalio('${p.id}')">${ic('out',18)} Ya se fue</button>`:''}${act?`<button class="btn" onclick="compartirPase('${p.id}')">${ic('share',18)} Compartir</button><button class="btn bad" onclick="cancelarPase('${p.id}')">Cancelar pase</button>`:''}</div>`)}
 async function compartirPase(id){const p=DB.pases.find(x=>x.id===id);const t=textoPase(p);try{if(navigator.share){await navigator.share({text:t});return}}catch(e){return}try{await navigator.clipboard.writeText(t);toast('Copiado: pégalo en WhatsApp')}catch(e){window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank')}}
 function cancelarPase(id){confirmar('¿Cancelar este pase?','El PIN dejará de funcionar en portería.','Cancelar pase',()=>{const p=DB.pases.find(x=>x.id===id);p.estado='cancelado';save();render();toast('Pase cancelado')},{no:'Mantener pase',icono:'ticket'})}
 
@@ -1487,13 +1492,19 @@ function cambiarPass(e){e.preventDefault();const f=new FormData(e.target);if(f.g
 /* =========================================================
    VIGILANCIA
    ========================================================= */
-function vVigInicio(){const h=ymd();const esp=DB.autorizaciones.filter(a=>a.estado==='esperando');const resp=DB.autorizaciones.filter(a=>a.estado!=='esperando'&&(a.fechaResp||'').slice(0,10)===h).sort((a,b)=>b.fechaResp.localeCompare(a.fechaResp)).slice(0,5);
-  if(!S.gate){try{S.gate=localStorage.getItem(KEY+'_gate')}catch(e){}S.gate=S.gate||'todos'}const G=p=>S.gate==='todos'||p.porton===S.gate;const den=DB.pases.filter(p=>dentro(p)&&G(p));const exp=DB.pases.filter(p=>vigenteHoy(p)&&!dentro(p)&&G(p));
+function vVigInicio(){vencerAutorizaciones();const h=ymd();const esp=DB.autorizaciones.filter(a=>a.estado==='esperando');const resp=DB.autorizaciones.filter(a=>a.estado!=='esperando'&&(a.fechaResp||'').slice(0,10)===h).sort((a,b)=>b.fechaResp.localeCompare(a.fechaResp)).slice(0,5);
+  if(!S.gate){try{S.gate=localStorage.getItem(KEY+'_gate')}catch(e){}S.gate=S.gate||'todos'}const G=p=>S.gate==='todos'||p.porton===S.gate;const den=DB.pases.filter(p=>dentroHoy(p)&&G(p));const vie=DB.pases.filter(p=>dentroViejo(p)&&G(p));const exp=DB.pases.filter(p=>vigenteHoy(p)&&!dentro(p)&&!completoHoy(p)&&G(p));
   return `<h2>Portería</h2><label class="f">Estoy en<select onchange="S.gate=this.value;try{localStorage.setItem(KEY+'_gate',this.value)}catch(e){};render()"><option value="todos">Todos los portones</option>${portones().map(p=>`<option value="${p.id}" ${S.gate===p.id?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select></label><input id="qv" placeholder="Buscar por PIN, nombre o N° de casa" inputmode="search" oninput="document.getElementById('rv').innerHTML=buscarVig(this.value)"><div id="rv" style="margin-top:8px"></div>
   ${esp.length?`<h3>Esperando respuesta del residente</h3>${esp.map(a=>`<div class="item">${tAv(a.tipo)}<div class="grow"><b>${esc(a.nombre)}</b><div class="sm muted">${casaNom(a.casaId)} · enviado ${hora(a.fecha)}</div></div>${chip('Esperando','warn')}</div>`).join('')}`:''}
   ${resp.length?`<h3>Respuestas de residentes</h3>${resp.map(a=>`<div class="item">${tAv(a.tipo)}<div class="grow"><b>${esc(a.nombre)}</b><div class="sm muted">${casaNom(a.casaId)} · ${hora(a.fechaResp)}</div></div>${a.estado==='aprobado'?`<button class="btn ok smb" onclick="verPaseVig('${a.paseId}')">Autorizado ›</button>`:chip('Rechazado','bad')}</div>`).join('')}`:''}
+  ${vie.length?`<h3 id="vzViejos">Entraron otro día y no marcaron salida (${vie.length})</h3><p class="note" style="margin-top:-4px">Confirma con el residente si siguen adentro.</p>${vie.map(paseViejoVig).join('')}`:''}
   <h3>Dentro de la colonia (${den.length})</h3>${den.map(paseItemVig).join('')||empty('Nadie dentro')}
   <h3>Esperados hoy (${exp.length})</h3>${exp.map(paseItemVig).join('')||empty('Sin pases para hoy')}`}
+function paseViejoVig(p){const l=ultIng(p);const preg=p.preguntado===ymd();return `<div class="card vz-viejo">${'<div class="row">'}${tAv(p.tipo)}<div class="grow"><b>${esc(p.nombre)}</b> <span class="sm muted">· ${casaNom(p.casaId)}</span><div class="sm">Entró el ${fFecha(String(l.entrada).slice(0,10))} a las ${hora(l.entrada)}</div><div class="sm muted">${TIPOS[p.tipo].l}${p.detalle?' · '+esc(p.detalle):''}</div></div>${chip(preg?'Se preguntó':'Sin salida',preg?'info':'warn')}</div>
+  <div class="btns vz-vbtn"><button class="btn" onclick="vzPreguntar('${p.id}')">${ic('phone',18)} Preguntar al residente</button><button class="btn ok" onclick="marcarSalida('${p.id}')">${ic('out',18)} Ya salió</button><button class="btn ghost" onclick="vzSigue('${p.id}')">Sigue adentro</button></div></div>`}
+function vzPreguntar(id){const p=DB.pases.find(x=>x.id===id);if(!p)return;const l=ultIng(p);notificar(usuariosCasa(p.casaId),'¿'+p.nombre+' sigue en tu casa?',`Entró el ${fFecha(String(l.entrada).slice(0,10))} a las ${hora(l.entrada)} y portería no registró su salida. Abre el pase y toca «Ya se fue» si ya salió.`,{tab:'accesos'});p.preguntado=ymd();save();render();toast('Se le preguntó al residente')}
+function vzSigue(id){const p=DB.pases.find(x=>x.id===id);if(!p)return;p.okDentro=ymd();save();render();toast('Anotado: sigue adentro')}
+function resYaSalio(id){const p=DB.pases.find(x=>x.id===id);const l=p&&ultIng(p);if(!l||l.salida)return;l.salida=nowISO();l.salidaPor='residente';save();closeSheet();render();toast('Listo: se marcó la salida')}
 function paseItemVig(p){const e=estadoPase(p);return `<button class="item" onclick="verPaseVig('${p.id}')">${tAv(p.tipo)}<div class="grow"><b>${esc(p.nombre)}</b> <span class="sm muted">· ${casaNom(p.casaId)}</span><div class="sm muted">${TIPOS[p.tipo].l}${p.detalle?' · '+esc(p.detalle):''}</div><div class="sm">🚪 ${esc(portonNom(p.porton))}</div></div>${chip(e.l,e.c)}</button>`}
 function buscarVig(q){q=q.trim().toLowerCase();if(!q)return'';const l=DB.pases.filter(p=>(vigenteHoy(p)||dentro(p))&&(p.pin===q||p.nombre.toLowerCase().includes(q)||('casa '+casa(p.casaId).numero)===q||casa(p.casaId).numero===q));
   const inv=DB.pases.filter(p=>p.pin===q&&!vigenteHoy(p)&&!dentro(p));
@@ -2112,8 +2123,8 @@ function datosReporte(tipo,pol){if(tipo==='pagos')return datosPagos(pol);const c
     return{titulo:'Reporte de personas en mora',resumen:[['Personas en mora',ps.length],['Casas en mora',mor.length],['Meses adeudados',sum(ps,p=>p.meses)],['Total en mora',money(totM)]],cols:[{h:'Persona',w:130,b:1},{h:'DUI',w:70},{h:'Teléfono',w:62},{h:'Casas',w:130},{h:'Meses',w:40,r:1},{h:'Total',w:62,r:1,b:1}],filas:ps.map(p=>[p.nombre,p.dui,p.tel,p.casas.join(', '),p.meses,money(p.total)]),total:['Total','','',`${ps.length} personas`,sum(ps,p=>p.meses),money(totM)]}}
   const porPol=[...new Set(cs.map(c=>c.pasaje))].sort().map(pp=>{const c2=cs.filter(c=>c.pasaje===pp);const m2=c2.filter(c=>moraCasa(c.id).length);return[pp,c2.length,c2.length-m2.length,m2.length,sum(m2,c=>sum(moraCasa(c.id),montoCuota)),c2.length?Math.round((c2.length-m2.length)/c2.length*100)+'%':'—']});
   return{titulo:'Resumen general de cobranza',resumen:[...base,['% solventes',cs.length?Math.round(sol.length/cs.length*100)+'%':'—'],['Cuota mensual',money(DB.config.cuota)],['Meses adeudados',sum(mor,x=>x.m.length)],['Pagos por validar',DB.pagos.filter(p=>p.estado==='revision').length]],cols:[{h:'Polígono',w:120,b:1},{h:'Casas',w:60,r:1},{h:'Solventes',w:70,r:1},{h:'En mora',w:70,r:1},{h:'Total en mora',w:90,r:1,b:1},{h:'% solventes',w:70,r:1}],filas:porPol.map(r=>[r[0],r[1],r[2],r[3],money(r[4]),r[5]]),total:['Total',cs.length,sol.length,mor.length,money(totM),cs.length?Math.round(sol.length/cs.length*100)+'%':'—']}}
-const TIPOS_REP=[['mora','Casas en mora'],['solventes','Casas solventes'],['personas','Personas en mora'],['pagos','Pagos por periodo'],['general','Resumen general']];
-function vReportes(){S.rep=S.rep||'mora';const R=datosReporte(S.rep,S.rpol||'');const pols=POLS();
+const TIPOS_REP=[['bitacora','Bitácora de accesos'],['mora','Casas en mora'],['solventes','Casas solventes'],['personas','Personas en mora'],['pagos','Pagos por periodo'],['general','Resumen general']];
+function vReportes(){S.rep=S.rep||'mora';if(S.rep==='bitacora'&&typeof VIEWS.admin.accesos==='function'){if(!S.bxR||S.bxR==='hoy')S.bxR='rango';return `<h2>Reportes</h2>${seg('rep',TIPOS_REP)}<p class="note">Consulta y descarga en Excel la bitácora de cualquier periodo: elige «Entre fechas».</p>`+VIEWS.admin.accesos().replace(/^\s*<h2>[\s\S]*?<\/h2>/,'')}const R=datosReporte(S.rep,S.rpol||'');const pols=POLS();
   return `<h2>Reportes</h2>${seg('rep',TIPOS_REP)}${pols.length>1?`<label class="f">Polígono<select onchange="S.rpol=this.value;render()"><option value="">Todos</option>${pols.map(p=>`<option ${S.rpol===p?'selected':''}>${esc(p)}</option>`).join('')}</select></label>`:''}
   ${filtroPagosRep()}<div class="btns" style="margin-top:0"><button class="btn" onclick="descargarReporte('${S.rep}',true)">${ic('doc',18)} Ver e imprimir PDF</button><button class="btn sec" onclick="descargarReporte('${S.rep}',false)">Descargar PDF</button></div>
   <div class="kpis" style="margin-top:12px">${R.resumen.slice(0,4).map(r=>kpi(r[0],r[1],'')).join('')}</div>
@@ -3008,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.20-45';
+const APP_VERSION='2026.11.20-46';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -6324,7 +6335,9 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
   function rango() {
     const r = S.bxR || 'hoy', hoy = ymd();
     if (r === '7') return [addDays(hoy, -6), hoy]; if (r === '30') return [addDays(hoy, -29), hoy];
-    if (r === 'fecha') { const f = S.bxF || hoy; return [f, f]; } return [hoy, hoy];
+    if (r === 'fecha') { const f = S.bxF || hoy; return [f, f]; }
+    if (r === 'rango') { let d = S.bxD || addDays(hoy, -6), h = S.bxH || hoy; if (d > h) [d, h] = [h, d]; return [d, h]; }
+    return [hoy, hoy];
   }
   function filtrar(R, conCat) {
     const [d, h] = rango(); const q = norm(S.bxQ);
@@ -6351,8 +6364,9 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
       <div class="kpis">${kpi('Dentro ahora', den.length, "document.getElementById('bxDentro')&&document.getElementById('bxDentro').scrollIntoView({behavior:'smooth'})")}${kpi('Ingresos', base.filter(x => !x.rechazo).length, '')}${kpi('No autorizados', cnt('rechazado'), "S.bxC='rechazado';render()")}${kpi('Comida y paquetes', cnt('comida') + cnt('paquete'), "S.bxC='comida';render()")}</div>
       <h3 id="bxDentro">Dentro de la residencial ahora (${den.length})</h3>${den.slice(0, 30).map(fila).join('') || empty('Nadie de afuera está adentro en este momento')}${den.length > 30 ? `<p class="note">y ${den.length - 30} más</p>` : ''}
       <h3>Registro</h3>
-      <div class="bx-bar">${seg('bxR', [['hoy', 'Hoy'], ['7', '7 días'], ['30', '30 días'], ['fecha', 'Otra fecha']])}</div>
+      <div class="bx-bar">${seg('bxR', [['hoy', 'Hoy'], ['7', '7 días'], ['30', '30 días'], ['fecha', 'Un día'], ['rango', 'Entre fechas']])}</div>
       ${r === 'fecha' ? `<label class="f">Fecha<input type="date" value="${S.bxF || ymd()}" max="${ymd()}" onchange="S.bxF=this.value;render()"></label>` : ''}
+      ${r === 'rango' ? `<div class="two"><label class="f">Desde<input type="date" value="${S.bxD || addDays(ymd(), -6)}" max="${ymd()}" onchange="S.bxD=this.value;render()"></label><label class="f">Hasta<input type="date" value="${S.bxH || ymd()}" max="${ymd()}" onchange="S.bxH=this.value;render()"></label></div>` : ''}
       <div class="bx-q">${ic('search', 18)}<input id="bxQ" type="search" placeholder="Buscar nombre, casa, placa, DUI o PIN" value="${esc(S.bxQ || '')}" oninput="bxBuscar(this)"></div>
       <div class="bx-cats"><button type="button" class="bx-cat ${!S.bxC || S.bxC === 'todos' ? 'on' : ''}" onclick="S.bxC='todos';render()">Todos <b>${base.length}</b></button>${Object.keys(CAT).map(c => `<button type="button" class="bx-cat c-${CAT[c].c} ${S.bxC === c ? 'on' : ''}" onclick="S.bxC='${c}';render()">${ic(CAT[c].i, 15)} ${CAT[c].l} <b>${cnt(c)}</b></button>`).join('')}</div>
       <div class="row" style="margin:6px 0 4px"><p class="note grow" style="margin:0">${L.length} registro(s)</p>${L.length ? `<button type="button" class="btn ghost smb" onclick="bxDescargar()">${ic('doc', 16)}<span class="b-tx">Descargar Excel</span></button>` : ''}</div>`;
@@ -6903,7 +6917,7 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
       let h = bv.apply(this, arguments);
       try {
         const G = p => !S.gate || S.gate === 'todos' || p.porton === S.gate;
-        const den = DB.pases.filter(p => dentro(p) && G(p)).length, exp = DB.pases.filter(p => vigenteHoy(p) && !dentro(p) && G(p)).length;
+        const den = DB.pases.filter(p => dentroHoy(p) && G(p)).length, exp = DB.pases.filter(p => vigenteHoy(p) && !dentro(p) && !completoHoy(p) && G(p)).length, vie = DB.pases.filter(p => dentroViejo(p) && G(p)).length;
         const esp = (DB.autorizaciones || []).filter(a => a.estado === 'esperando').length;
         h = h.replace(/^\s*<h2>Portería<\/h2><label class="f">Estoy en<select[\s\S]*?<\/select><\/label>/, '')
           .replace('placeholder="Buscar por PIN, nombre o N° de casa"', 'placeholder="Nombre, N° de casa o placa"')
@@ -6920,6 +6934,7 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
             <div class="vz-keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k).join('')}<button type="button" class="vz-del" onclick="vzBorrar()" ondblclick="vzBorrar(true)" aria-label="Borrar">${ic('back', 28)}</button>${k(0)}<button type="button" class="vz-ok" id="vzOk" onclick="vzValidar()" disabled aria-label="Revisar número">${ic('check', 32)}</button></div>
           </section>
           <button class="vz-sin" onclick="go('sinpase')"><span>${ic('userplus', 30)}</span><b>Llegó alguien sin pase</b><small>Pide permiso al residente</small></button>
+          ${vie ? `<button class="vz-alerta" onclick="document.getElementById('vzViejos')?.scrollIntoView({behavior:'smooth'})"><b>${vie}</b><span>${vie === 1 ? 'persona entró' : 'personas entraron'} otro día y no ${vie === 1 ? 'marcó' : 'marcaron'} salida. Confirma con el residente.</span>${ic('chev', 18)}</button>` : ''}
           <div class="vz-cnt">
             <button onclick="document.getElementById('vzDentro')?.scrollIntoView({behavior:'smooth'})"><b>${den}</b><small>Adentro ahora</small></button>
             <button onclick="document.getElementById('vzEsperados')?.scrollIntoView({behavior:'smooth'})"><b>${exp}</b><small>Esperados hoy</small></button>
@@ -7027,6 +7042,9 @@ button.ez-t:active,a.ez-t:active,.ez-m:active,.ez-bar:active,.vz-keys button:act
 .vz-cnt button{min-height:76px;border-radius:16px;border:1px solid var(--line);background:var(--card,#fff);color:var(--ink,inherit);font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .vz-cnt b{font-size:26px;font-variant-numeric:tabular-nums}.vz-cnt small{font-size:13px;color:var(--muted);text-align:center;line-height:1.2}
 .vz-cnt .hot{border-color:#d97706;background:rgba(217,119,6,.08)}.vz-cnt .hot b{color:#b45309}
+.vz-alerta{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;padding:12px 14px;border-radius:16px;border:1px solid #d97706;background:rgba(217,119,6,.1);color:var(--ink,inherit);font:inherit;text-align:left;cursor:pointer}
+.vz-alerta b{font-size:24px;color:#b45309;min-width:28px;text-align:center}.vz-alerta span{flex:1;font-size:15px;line-height:1.35}
+.vz-viejo{border-color:#f0c78a}.vz-vbtn{display:grid!important;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.vz-vbtn .btn:first-child{grid-column:1/-1}
 .vz-res{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:18px 14px;border-radius:20px;margin-bottom:14px;color:#fff;animation:vzIn 200ms var(--ez-ease)}
 .vz-res b{font-size:28px;letter-spacing:.01em}.vz-res small{font-size:16px;opacity:.95}
 .vz-res .vz-ri{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center}
