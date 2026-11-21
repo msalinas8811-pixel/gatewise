@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-61';
+const APP_VERSION='2026.11.21-62';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8435,6 +8435,123 @@ window.GWQR = GWQR;
 }
 @media (prefers-reduced-motion:reduce){.nav{transition:none!important}}`;
   document.head.appendChild(st);
+})();
+
+/* =========================================================
+   TEMA "FRESCO" (Propuesta 3 · B)
+   Azul marino + verde brillante + amarillo sol. Letra Outfit para
+   títulos y números, Inter para el texto. Botones tipo píldora,
+   tarjetas redondeadas, encabezado azul marino.
+   - Si la residencial personalizó sus colores (marca), esos colores
+     siguen mandando en el encabezado y los botones.
+   - Incluye versión oscura.
+   ========================================================= */
+(function () {
+  // Letra Outfit (títulos y números)
+  if (!document.getElementById('gw-outfit')) {
+    const l = document.createElement('link'); l.id = 'gw-outfit'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&display=swap';
+    document.head.appendChild(l);
+  }
+  const CLARO = '--bg:#F1F6F4;--card:#FFFFFF;--text:#0B1F4D;--muted:#4B5B70;--line:#DCE6E2;--pri:#0B1F4D;--onpri:#FFFFFF;--pri2:#E3ECFF;--bar:#0B1F4D;--onbar:#FFFFFF;--ok:#04724A;--okbg:#D7F7E8;--warn:#8A5A00;--warnbg:#FFF1CC;--bad:#B42318;--badbg:#FFE4DE;--info:#2446B3;--infobg:#E3ECFF;--acc2:#00C27A;--acc3:#FFC53D;--hero:var(--bar,#0B1F4D);--shadow:none;--fr-verde:#00C27A;--fr-verde-tx:#0B1F4D;--fr-sol:#FFC53D;--fr-coral:#FF7A59;--fr-azul:#7C9CFF;--fr-sub:#B9C6E4';
+  const OSCURO = '--bg:#081129;--card:#111C3D;--text:#EEF3FF;--muted:#A7B4D3;--line:#22336A;--pri:#00C27A;--onpri:#06231A;--pri2:#0F3A2E;--bar:#0B1F4D;--onbar:#FFFFFF;--ok:#4ADE9B;--okbg:#0E3326;--warn:#FFD36B;--warnbg:#3A2C06;--bad:#FF8A73;--badbg:#3D1712;--info:#9DB6FF;--infobg:#17295A;--acc2:#00C27A;--acc3:#FFC53D;--hero:#0B1F4D;--shadow:none;--fr-verde:#00C27A;--fr-verde-tx:#06231A;--fr-sol:#FFC53D;--fr-coral:#FF8A73;--fr-azul:#9DB6FF;--fr-sub:#B9C6E4';
+  const H = "Outfit,Inter,system-ui,sans-serif";
+  const st = document.createElement('style'); st.id = 'gw-tema-fresco';
+  st.textContent = `
+:root{${CLARO}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${OSCURO}}}
+:root[data-theme="dark"]{${OSCURO}}
+
+/* Fondo limpio, sin manchas de color */
+body{background:var(--bg)!important}
+body::before,body::after{display:none!important}
+
+/* Letra: Outfit en títulos y números */
+h1,h2,h3,.wrap>h2,.top .tt b,.r7-hero h2,.kpi b,.r7-monto,.hero5 h2,.rs-hero h2,.sheet-h b,.sheet h3,.auth h1{font-family:${H};letter-spacing:-.015em}
+.wrap>h2{font-size:26px;font-weight:800}
+.wrap h3{font-family:${H};font-weight:700;font-size:19px}
+.wrap h3::before{background:var(--fr-verde);width:16px;height:4px}
+
+/* Encabezado azul marino con esquinas redondeadas abajo (teléfono) */
+.top{background:var(--bar,#0B1F4D)!important;color:var(--onbar,#fff)!important}
+@media (max-width:899px){.top{border-radius:0 0 22px 22px;box-shadow:0 10px 24px -14px rgba(11,31,77,.55)!important}}
+
+/* Botones tipo píldora */
+.btn{border-radius:999px!important;min-height:48px;font-weight:700;letter-spacing:.005em}
+.btn.ghost{background:var(--card)!important;color:var(--text)!important;box-shadow:inset 0 0 0 1.5px var(--line)!important}
+.btn.big-ok,.btn.ok{background:var(--fr-verde)!important;color:var(--fr-verde-tx)!important}
+.btn.sm,.btn.smb{min-height:40px}
+.btn{transition:transform 160ms cubic-bezier(.23,1,.32,1),filter 160ms ease}
+.btn:active{transform:scale(.97)}
+
+/* Tarjetas */
+.card{border-radius:22px!important;border-width:1.5px!important;background:var(--card)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
+.item{border-radius:18px}
+.kpi{border-radius:20px!important}
+input,select,textarea{border-radius:14px!important;border-width:1.5px!important}
+input:focus,select:focus,textarea:focus{outline:3px solid color-mix(in srgb,var(--fr-verde) 45%,transparent);outline-offset:1px;border-color:var(--fr-verde)!important}
+
+/* Portada del residente: azul marino; estado "al día" en verde con texto marino */
+.r7-hero,.hero5,.rs-hero{background:var(--hero,#0B1F4D)!important;color:#fff}
+.r7-hero .r7-est{background:var(--fr-verde)!important;color:var(--fr-verde-tx)!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.r7-hero .r7-est *{color:inherit!important}
+.r7-pago{background:var(--fr-verde)!important;color:var(--fr-verde-tx)!important;box-shadow:0 14px 30px -16px rgba(0,120,76,.6)!important}
+.r7-pago *{color:inherit}
+.r7-pago.warn{background:var(--fr-sol)!important}
+.r7-pago.bad{background:var(--fr-coral)!important}
+.r7-pago.info{background:var(--fr-azul)!important}
+.r7-pago .r7-sec{background:rgba(11,31,77,.1)!important;box-shadow:inset 0 0 0 1.5px rgba(11,31,77,.25)!important}
+.r7-pago .r7-pagar,.r7-pagar{background:#0B1F4D!important;color:#fff!important}
+
+/* Íconos de color: planos, sin degradado ni brillo */
+.mic,.kpi .ki,.ti-big,.av.ti,.item>.av:not(:has(img)){background:var(--c,var(--pri))!important;box-shadow:none!important}
+
+/* Menú de abajo: píldora verde detrás del ícono activo */
+.nav{background:var(--card)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-top:1px solid var(--line)!important;box-shadow:none!important}
+.nav button{color:var(--muted)!important;font-weight:600}
+.nav button.on{color:var(--text)!important;font-weight:800}
+.nav button .ni{border-radius:17px;transition:background-color 160ms ease}
+.nav button.on .ni{background:var(--fr-verde)!important;color:var(--fr-verde-tx)!important}
+
+/* Chips y avisos */
+.chip{font-weight:700;border-radius:999px}
+.badge{background:var(--fr-sol)!important;color:#0B1F4D!important;box-shadow:0 0 0 2px var(--bar,#0B1F4D)!important}
+.alert{background-image:none!important;border-radius:20px}
+
+/* Portería: teclado y botón de validar */
+.vz-key,.vzk button{border-radius:20px!important;font-family:${H}!important;font-weight:700!important}
+
+/* Pantalla de entrada */
+.auth-hero{background:#0B1F4D!important}
+.auth-main::before,.auth-main::after{display:none!important}
+
+/* Botones grandes del residente: tarjeta blanca + ícono de color plano con ícono marino */
+.r7-t{background:var(--card)!important;box-shadow:inset 0 0 0 1.5px var(--line)!important;border-radius:24px!important}
+.r7-t .r7-ti{background:var(--c)!important;color:#0B1F4D!important;box-shadow:none!important;border-radius:18px!important}
+.r7-t b{font-family:${H};font-size:18px;font-weight:700}
+.r7-t.c-teal,.r7-t.c-green{--c:#00C27A}.r7-t.c-amber{--c:#FFC53D}.r7-t.c-orange{--c:#FF7A59}
+.r7-t.c-indigo,.r7-t.c-violet,.r7-t.c-sky{--c:#7C9CFF}.r7-t.c-pink{--c:#FF8FB1}
+@media (hover:hover) and (pointer:fine){.r7-t:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1.5px var(--fr-verde)!important}}
+.r7-sos{background:#C81E1E!important;box-shadow:none!important;color:#fff!important}
+.r7-sos .r7-ti{background:rgba(255,255,255,.18)!important;color:#fff!important}
+/* Portería: botón de escanear QR en azul marino */
+.vz-qr{background:#0B1F4D!important;color:#fff!important;border-radius:999px!important;min-height:64px!important}
+:root[data-theme="dark"] .vz-qr{background:var(--fr-verde)!important;color:#06231A!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .vz-qr{background:var(--fr-verde)!important;color:#06231A!important}}
+/* Tienda, técnicos, chat con el cobrador */
+.ez-a.c-teal{background:#0B1F4D!important}.ez-a.c-indigo{background:#2446B3!important}.ez-a{border-radius:22px!important}
+.cc-m.yo .cc-b{background:#0B1F4D!important;border-color:#0B1F4D!important;color:#fff!important}
+.cc-alerta{border-color:var(--fr-verde)!important;background:color-mix(in srgb,var(--fr-verde) 10%,transparent)!important}
+.rs-top .rs-ic{color:#0B1F4D!important}
+.rs-hero .btns .btn:not(.sec):not(.ghost):not(.bad){color:#0B1F4D!important}
+.ac-n{background:#0B1F4D!important}
+.side{background:#0B1F4D!important}
+@media (prefers-reduced-motion:reduce){.btn,.nav button .ni,.r7-t{transition:none!important}}
+`;
+  document.head.appendChild(st);
+  // color de la barra del teléfono
+  try { const m = document.querySelector('meta[name=theme-color]'); if (m && /0f766e/i.test(m.content)) m.content = '#0B1F4D'; } catch (e) { }
+  if (typeof setThemeMeta === 'function') { const b = setThemeMeta; setThemeMeta = function (c) { return b(/^#0f766e$/i.test(c) ? '#0B1F4D' : c); }; }
 })();
 
 /* ---------------- Arranque ---------------- */
