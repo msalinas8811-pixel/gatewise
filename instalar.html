@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instalar GateWise</title>
+<meta name="description" content="Cómo instalar GateWise en Android, iPhone y computadora.">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#0b3b3a">
+<style>
+:root{--bg:#f4f7f6;--card:#fff;--ink:#10201f;--muted:#55666a;--line:#dbe4e2;--pri:#0f766e;--pri2:#0b3b3a;--ok:#15803d;--chip:#e6f4f2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1416;--card:#132226;--ink:#e7f1ef;--muted:#9db0ad;--line:#22373b;--chip:#173a37}}
+:root[data-theme="dark"]{--bg:#0b1416;--card:#132226;--ink:#e7f1ef;--muted:#9db0ad;--line:#22373b;--chip:#173a37}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:17px;line-height:1.55}
+header{background:linear-gradient(140deg,var(--pri2),var(--pri));color:#fff;padding:28px 16px 64px}
+.w{max-width:720px;margin:0 auto;padding:0 16px}
+header .w{padding:0}
+.logo{display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px}
+.logo img{width:44px;height:44px;border-radius:12px}
+h1{font-size:28px;line-height:1.2;margin:20px 0 6px}
+header p{margin:0;opacity:.92}
+main{margin-top:-44px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.08)}
+.tabs button{min-height:52px;border:0;border-radius:13px;background:transparent;color:var(--ink);font:inherit;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.tabs button[aria-selected="true"]{background:var(--pri);color:#fff}
+.tabs button:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+section.p{display:none;margin-top:16px}
+section.p.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin-bottom:14px}
+.card h2{font-size:21px;margin:0 0 4px}
+.card .sub{color:var(--muted);margin:0 0 14px}
+ol.pasos{list-style:none;margin:0;padding:0;counter-reset:p}
+ol.pasos li{counter-increment:p;position:relative;padding:0 0 18px 52px;min-height:40px}
+ol.pasos li::before{content:counter(p);position:absolute;left:0;top:-2px;width:38px;height:38px;border-radius:50%;background:var(--chip);color:var(--pri);font-weight:800;display:grid;place-items:center}
+ol.pasos li:last-child{padding-bottom:0}
+ol.pasos b{display:block}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:58px;border-radius:16px;background:var(--ok);color:#fff;font-weight:800;font-size:18px;text-decoration:none;border:0;cursor:pointer;margin:6px 0 14px}
+.btn.sec{background:transparent;color:var(--pri);border:2px solid var(--pri)}
+.btn:active{transform:scale(.98)}
+.nota{background:var(--chip);border-radius:14px;padding:12px 14px;font-size:15.5px;margin-top:10px}
+.ic{display:inline-flex;vertical-align:-4px}
+kbd{font-family:inherit;font-weight:700;background:var(--chip);border-radius:6px;padding:1px 6px}
+footer{color:var(--muted);font-size:14px;text-align:center;padding:24px 16px 40px}
+footer a{color:var(--pri)}
+.oculto{display:none!important}
+</style>
+</head>
+<body>
+<header><div class="w">
+  <div class="logo"><img src="icon-192.png" alt="">GateWise</div>
+  <h1>Instala GateWise en tu teléfono</h1>
+  <p>Elige tu tipo de teléfono y sigue los pasos. Toma menos de 2 minutos.</p>
+</div></header>
+
+<main class="w">
+  <div class="tabs" role="tablist" aria-label="Tipo de equipo">
+    <button role="tab" id="t-android" aria-controls="p-android" aria-selected="true" onclick="ver('android')">Android</button>
+    <button role="tab" id="t-iphone" aria-controls="p-iphone" aria-selected="false" onclick="ver('iphone')">iPhone</button>
+    <button role="tab" id="t-pc" aria-controls="p-pc" aria-selected="false" onclick="ver('pc')">Computadora</button>
+  </div>
+
+  <section class="p on" id="p-android" role="tabpanel" aria-labelledby="t-android">
+    <div class="card" id="apkCard">
+      <h2>Opción 1: descargar la app</h2>
+      <p class="sub">Para teléfonos Android (Samsung, Xiaomi, Motorola, Huawei y otros).</p>
+      <a class="btn" href="GateWise.apk" download>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Descargar GateWise para Android</a>
+      <ol class="pasos">
+        <li><b>Toca «Descargar»</b>Si el teléfono pregunta, toca <kbd>Descargar</kbd> o <kbd>Descargar de todos modos</kbd>.</li>
+        <li><b>Abre el archivo</b>Cuando termine, toca <kbd>Abrir</kbd> en el aviso, o busca <kbd>GateWise.apk</kbd> en <kbd>Archivos</kbd> › <kbd>Descargas</kbd>.</li>
+        <li><b>Da permiso la primera vez</b>Si dice que no puede instalar apps desconocidas, toca <kbd>Configuración</kbd>, activa <kbd>Permitir de esta fuente</kbd> y regresa con la flecha.</li>
+        <li><b>Toca «Instalar»</b>Si aparece Google Play Protect, toca <kbd>Más detalles</kbd> › <kbd>Instalar de todas formas</kbd>. Es normal en apps que todavía no están en Play Store.</li>
+        <li><b>Listo</b>Abre GateWise desde la pantalla de inicio y entra con el usuario y la contraseña que te dio la administración.</li>
+      </ol>
+      <p class="nota">Descarga la app solo desde este enlace oficial. No la instales si alguien te la manda por otro medio.</p>
+    </div>
+    <div class="card">
+      <h2 id="opc2">Opción 2: instalar desde Chrome</h2>
+      <p class="sub">No descarga ningún archivo y siempre está actualizada.</p>
+      <ol class="pasos">
+        <li><b>Abre la app en Chrome</b><a href="./" style="color:var(--pri);font-weight:700">Toca aquí para abrir GateWise</a>.</li>
+        <li><b>Toca el menú</b>Son los tres puntitos <kbd>⋮</kbd> arriba a la derecha.</li>
+        <li><b>Elige «Instalar app»</b>En algunos teléfonos dice <kbd>Agregar a pantalla principal</kbd>. Confirma con <kbd>Instalar</kbd>.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="p" id="p-iphone" role="tabpanel" aria-labelledby="t-iphone">
+    <div class="card">
+      <h2>Instalar en iPhone o iPad</h2>
+      <p class="sub">Se instala desde Safari. No necesitas App Store ni descargar archivos.</p>
+      <a class="btn" href="./">Abrir GateWise en Safari</a>
+      <ol class="pasos">
+        <li><b>Abre el enlace en Safari</b>Tiene que ser Safari, la brújula azul. Si lo abriste desde WhatsApp, toca <kbd>⋯</kbd> y elige <kbd>Abrir en Safari</kbd>.</li>
+        <li><b>Toca «Compartir»</b>Es el cuadro con una flecha hacia arriba <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg></span>, abajo en el centro (en iPad, arriba).</li>
+        <li><b>Busca «Agregar a inicio»</b>Desliza la lista hacia arriba y toca <kbd>Agregar a la pantalla de inicio</kbd>.</li>
+        <li><b>Toca «Agregar»</b>Arriba a la derecha. El ícono de GateWise queda en tu pantalla como cualquier app.</li>
+        <li><b>Ábrela desde el ícono</b>Entra con el usuario y la contraseña que te dio la administración.</li>
+      </ol>
+      <p class="nota">Para usar el lector de QR de portería, acepta el permiso de cámara cuando la app lo pida.</p>
+    </div>
+  </section>
+
+  <section class="p" id="p-pc" role="tabpanel" aria-labelledby="t-pc">
+    <div class="card">
+      <h2>En la computadora</h2>
+      <p class="sub">Para la administración: cobros, reportes y configuración en pantalla grande.</p>
+      <a class="btn sec" href="./">Abrir GateWise</a>
+      <ol class="pasos">
+        <li><b>Abre GateWise en Chrome o Edge</b>Guarda la página en favoritos.</li>
+        <li><b>Instálala (opcional)</b>Toca el ícono de instalar al final de la barra de direcciones y luego <kbd>Instalar</kbd>. Quedará en el escritorio y en el menú Inicio.</li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="card">
+    <h2>¿Problemas para instalar?</h2>
+    <p class="sub" style="margin:0">Escribe a la administración de tu residencial y te ayudarán.</p>
+  </div>
+</main>
+
+<footer>GateWise · <a href="terminos.html">Términos de uso</a> · <a href="privacidad.html">Aviso de privacidad</a></footer>
+
+<script>
+function ver(id){
+  ['android','iphone','pc'].forEach(function(k){
+    var on=k===id;
+    document.getElementById('p-'+k).classList.toggle('on',on);
+    document.getElementById('t-'+k).setAttribute('aria-selected',on?'true':'false');
+  });
+}
+(function(){
+  var ua=navigator.userAgent||'';
+  if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))ver('iphone');
+  else if(!/Android/i.test(ua))ver('pc');
+  // si todavía no se ha subido el APK, se muestra solo la opción de Chrome
+  function sinApk(){document.getElementById('apkCard').classList.add('oculto');var h=document.getElementById('opc2');if(h)h.textContent='Instalar desde Chrome';}
+  try{fetch('GateWise.apk',{method:'HEAD',cache:'no-store'}).then(function(r){if(!r.ok)sinApk()}).catch(function(){})}catch(e){}
+})();
+</script>
+</body>
+</html>
