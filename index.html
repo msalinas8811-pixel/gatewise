@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-52';
+const APP_VERSION='2026.11.21-53';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8054,6 +8054,102 @@ window.GWQR = GWQR;
     try { inp.dispatchEvent(new Event('change', { bubbles: true })); } finally { setTimeout(() => { inp.__gwListo = false; }, 0); }
     if (cambiadas) toast(`Foto optimizada: ${kb(antes)} → ${kb(despues)}`);
   }, true);
+})();
+
+/* =========================================================
+   EDITAR Y ELIMINAR REPORTES (residente)
+   - Mientras el reporte está "Recibido" (la administración aún no lo
+     atiende), quien lo hizo puede editarlo o eliminarlo.
+   - Si ya está "En revisión", puede retirarlo: queda cerrado con la nota
+     "Retirado por el residente" para que la administración lo sepa.
+   - La administración recibe aviso de cada cambio.
+   ========================================================= */
+(function () {
+  if (typeof verReclamo !== 'function') return;
+  const esDueno = r => S.user && S.user.rol !== 'admin' && r && (r.usuarioId === S.user.id || r.casaId === S.user.casaId);
+  const tituloDe = txt => { txt = String(txt || '').trim(); const c = txt ? txt.split(/[.\n]/)[0].slice(0, 60) : 'Reporte con foto'; return c.length < txt.length && txt.length > 60 ? c + '…' : c; };
+  let FOTO = null;
+
+  const bv = verReclamo;
+  verReclamo = function (id) {
+    const ret = bv.apply(this, arguments);
+    try {
+      const r = DB.reclamos.find(x => x.id === id); if (!esDueno(r)) return ret;
+      const kv = document.querySelector('#ov .kv'); if (!kv) return ret;
+      let h = '';
+      if (r.estado === 'abierto') h = `<div class="re-acc"><button class="btn" onclick="reEditar('${r.id}')">✏️ Editar reporte</button><button class="btn ghost re-del" onclick="reEliminar('${r.id}')">${ic('trash', 18)} Eliminar</button></div>`;
+      else if (r.estado === 'proceso') h = `<div class="re-acc re-uno"><p class="note" style="margin:0 0 6px">La administración ya lo está revisando. Para corregir algo, escribe un comentario abajo.</p><button class="btn ghost re-del" onclick="reRetirar('${r.id}')">${ic('x', 18)} Retirar reporte</button></div>`;
+      if (r.editado) h += `<p class="note" style="margin:6px 0 0">Editado el ${fFecha(r.editado)}</p>`;
+      if (h) kv.insertAdjacentHTML('afterend', h);
+    } catch (e) { console.warn('reclamo', e); }
+    return ret;
+  };
+  window.verReclamo = verReclamo;
+
+  window.reEditar = function (id) {
+    const r = DB.reclamos.find(x => x.id === id); if (!esDueno(r) || r.estado !== 'abierto') return toast('Este reporte ya no se puede editar');
+    FOTO = r.foto || null;
+    const cats = (Array.isArray(CATR) && CATR.length ? CATR.slice() : []); if (r.categoria && !cats.includes(r.categoria)) cats.push(r.categoria);
+    sheet('Editar reporte', `<form onsubmit="reGuardar(event,'${r.id}')">
+      <label class="f">¿Sobre qué es?<select name="cat">${cats.map(c => `<option ${c === r.categoria ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="f">¿Qué pasó?<textarea name="d" rows="5" maxlength="600" required>${esc(r.descripcion === '(Ver foto)' ? '' : r.descripcion || '')}</textarea></label>
+      <label class="f">¿Dónde? (opcional)<input name="u" value="${esc(r.ubicacion || '')}" placeholder="Ej. Pasaje B, frente a casa 9"></label>
+      <div class="f"><span class="re-lbl">Foto (opcional)</span><div id="reFoto">${pintarFoto()}</div></div>
+      <button class="btn block big-ok">Guardar cambios</button>
+      <button type="button" class="btn ghost block" onclick="verReclamo('${r.id}')">Cancelar</button></form>`);
+  };
+  function pintarFoto() {
+    return FOTO && FOTO.data ? `<div class="re-foto"><img src="${FOTO.data}" alt="Foto del reporte"><div class="btns"><label class="btn ghost smb">Cambiar foto<input type="file" accept="image/*" hidden onchange="reFotoNueva(this)"></label><button type="button" class="btn ghost smb" onclick="reFotoQuitar()">Quitar foto</button></div></div>`
+      : `<label class="btn ghost block">📷 Agregar foto<input type="file" accept="image/*" hidden onchange="reFotoNueva(this)"></label>`;
+  }
+  window.reFotoNueva = async function (inp) {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    try { FOTO = await leerArchivo(f); document.getElementById('reFoto').innerHTML = pintarFoto(); } catch (e) { toast('No se pudo leer la foto'); }
+  };
+  window.reFotoQuitar = function () { FOTO = null; document.getElementById('reFoto').innerHTML = pintarFoto(); };
+  window.reGuardar = function (e, id) {
+    e.preventDefault(); const r = DB.reclamos.find(x => x.id === id); if (!esDueno(r)) return;
+    if (r.estado !== 'abierto') { toast('La administración ya empezó a revisarlo; agrega un comentario en su lugar'); return verReclamo(id); }
+    const f = new FormData(e.target); const d = String(f.get('d') || '').trim();
+    if (!d && !FOTO) return toast('Escribe qué pasó o agrega una foto');
+    r.categoria = f.get('cat') || r.categoria; r.descripcion = d || '(Ver foto)'; r.titulo = tituloDe(d); r.ubicacion = String(f.get('u') || '').trim(); r.foto = FOTO;
+    r.editado = nowISO(); r.hilo = r.hilo || []; r.hilo.push({ autor: S.user.id, texto: '✏️ El residente editó el reporte.', fecha: nowISO() });
+    notificar(admins(), '✏️ Reporte editado: ' + r.titulo, `${casaNom(r.casaId)} · ${r.categoria}`, { tab: 'reclamos' });
+    save(); render(); toast('Reporte actualizado'); verReclamo(id);
+  };
+  window.reEliminar = function (id) {
+    const r = DB.reclamos.find(x => x.id === id); if (!esDueno(r)) return;
+    if (r.estado !== 'abierto') return toast('Ya está en revisión; puedes retirarlo en su lugar');
+    sheet('¿Eliminar este reporte?', `<p>Se borrará <b>«${esc(r.titulo)}»</b> y la administración ya no lo verá. Esto no se puede deshacer.</p>
+      <button class="btn block re-del-ok" onclick="reEliminarOk('${r.id}')">${ic('trash', 18)} Sí, eliminar</button>
+      <button class="btn ghost block" onclick="verReclamo('${r.id}')">No, conservarlo</button>`);
+  };
+  window.reEliminarOk = function (id) {
+    const i = DB.reclamos.findIndex(x => x.id === id); if (i < 0) return closeSheet(); const r = DB.reclamos[i]; if (!esDueno(r) || r.estado !== 'abierto') return closeSheet();
+    DB.reclamos.splice(i, 1);
+    notificar(admins(), '🗑️ Reporte eliminado por el residente', `${casaNom(r.casaId)} · ${r.titulo}`, { tab: 'reclamos' });
+    save(); closeSheet(); render(); toast('Reporte eliminado');
+  };
+  window.reRetirar = function (id) {
+    const r = DB.reclamos.find(x => x.id === id); if (!esDueno(r)) return;
+    sheet('¿Retirar este reporte?', `<p>La administración verá que lo retiraste y lo dará por cerrado.</p><label class="f">Motivo (opcional)<input id="reMot" placeholder="Ej. Ya se solucionó" maxlength="160"></label>
+      <button class="btn block re-del-ok" onclick="reRetirarOk('${r.id}')">Sí, retirar</button><button class="btn ghost block" onclick="verReclamo('${r.id}')">No, dejarlo</button>`);
+  };
+  window.reRetirarOk = function (id) {
+    const r = DB.reclamos.find(x => x.id === id); if (!esDueno(r)) return closeSheet();
+    const m = ((document.getElementById('reMot') || {}).value || '').trim();
+    r.estado = 'resuelto'; r.retirado = nowISO(); r.hilo = r.hilo || []; r.hilo.push({ autor: S.user.id, texto: 'El residente retiró el reporte.' + (m ? ' Motivo: ' + m : ''), fecha: nowISO() });
+    notificar(admins(), '↩️ Reporte retirado: ' + r.titulo, `${casaNom(r.casaId)}${m ? ' · ' + m : ''}`, { tab: 'reclamos' });
+    save(); closeSheet(); render(); toast('Reporte retirado');
+  };
+
+  const st = document.createElement('style'); st.id = 'gw-reedit-css';
+  st.textContent = `.re-acc{display:grid;grid-template-columns:1fr auto;gap:8px;margin:12px 0}.re-acc.re-uno{grid-template-columns:1fr}
+.re-del{color:#b91c1c!important;border-color:rgba(185,28,28,.35)!important}
+.re-del-ok{background:#b91c1c!important;border-color:#b91c1c!important;color:#fff!important}
+.re-lbl{display:block;font-weight:600;margin-bottom:6px}
+.re-foto{display:flex;flex-direction:column;gap:8px}.re-foto img{width:100%;max-height:240px;object-fit:cover;border-radius:14px}`;
+  document.head.appendChild(st);
 })();
 
 /* ---------------- Arranque ---------------- */
