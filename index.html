@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.20-51';
+const APP_VERSION='2026.11.21-52';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -7851,6 +7851,209 @@ window.GWQR = GWQR;
 .cc-alerta span:nth-child(2){flex:1;display:flex;flex-direction:column}.cc-alerta b{font-size:17px}.cc-alerta small{color:var(--muted);font-size:14px}
 `;
   document.head.appendChild(st);
+})();
+
+/* =========================================================
+   SINCRONIZACIÓN LIVIANA (modo demostración con Firebase Realtime DB)
+   Antes: cada vez que alguien abría la app se descargaba TODA la
+   información de la residencial.
+   Ahora:
+   - Los datos quedan guardados en el teléfono o la PC y la app abre
+     al instante con lo que ya tiene.
+   - En la nube cada sección (casas, pagos, pases, tienda…) tiene un
+     número de versión. La app solo escucha esa lista de versiones (unos
+     pocos bytes) y descarga únicamente las secciones que cambiaron.
+   - Al guardar, solo se sube la sección modificada.
+   - Una vez al día se hace una revisión completa por seguridad.
+   - Si la nube no acepta las versiones, vuelve sola al método anterior.
+   (En producción, Firestore ya guarda copia local y solo trae cambios.)
+   ========================================================= */
+(function () {
+  if (typeof escucharRes !== 'function' || typeof NUBE === 'undefined') return;
+  const viejoEscuchar = escucharRes, viejoNubeRes = nubeRes, viejoSetRes = nubeSetRes;
+  const DIA = 24 * 3600 * 1000;
+  const h32 = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; } return h.toString(36) + ':' + str.length; };
+  const kMeta = id => KEY + '_sync_' + id;
+  const leerMeta = id => { try { return JSON.parse(localStorage.getItem(kMeta(id)) || '{}'); } catch (e) { return {}; } };
+  const guardarMeta = (id, m) => { try { localStorage.setItem(kMeta(id), JSON.stringify(m)); } catch (e) { } };
+  const nuevaVer = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const guardarLocal = () => { try { localStorage.setItem(dbKey(RES), JSON.stringify(DB)); } catch (e) { } };
+  NUBE.stats = { bajadas: 0, bytes: 0, completas: 0 };
+  NUBE.liviana = true;
+
+  function usarMetodoAnterior(id, motivo) {
+    console.warn('Sincronización liviana desactivada:', motivo);
+    NUBE.liviana = false; if (NUBE.vRef) { NUBE.vRef.off(); NUBE.vRef = null; }
+    escucharRes = viejoEscuchar; nubeRes = viejoNubeRes; nubeSetRes = viejoSetRes;
+    window.escucharRes = viejoEscuchar; window.nubeRes = viejoNubeRes; window.nubeSetRes = viejoSetRes;
+    viejoEscuchar(id);
+  }
+
+  // aplica secciones recibidas de la nube
+  function aplicar(id, val, meta, primera) {
+    if (id !== RES || !DB) return;
+    let cambio = false;
+    Object.keys(val || {}).forEach(k => {
+      if (k === '_v') return; const str = val[k]; if (typeof str !== 'string') return;
+      const hh = h32(str); meta.h[k] = hh;
+      if (NUBE.sent.res[k] !== hh) { NUBE.sent.res[k] = hh; try { DB[k] = JSON.parse(str); cambio = true; } catch (e) { } }
+      NUBE.stats.bytes += str.length;
+    });
+    if (primera) { DB.visitasCobro = DB.visitasCobro || []; DB.cierres = DB.cierres || []; if (!DB.tienda) DB.tienda = { productos: [], pedidos: [], seq: 0 }; try { ensureCuotas(); } catch (e) { } }
+    if (cambio || primera) guardarLocal();
+    return cambio;
+  }
+
+  async function descargaCompleta(id, base, rv) {
+    const snap = await base.once('value'); const val = snap.val() || {}; delete val._v;
+    const meta = { v: {}, h: {}, full: Date.now() }; NUBE.sent.res = {};
+    if (!Object.keys(val).length && DB) { // nube vacía: subir lo local
+      const all = serial(DB); const up = {}; const v = {};
+      Object.keys(all).forEach(k => { up[k] = all[k]; v[k] = nuevaVer(); up['_v/' + k] = v[k]; meta.h[k] = h32(all[k]); NUBE.sent.res[k] = meta.h[k]; });
+      meta.v = v; await base.set(Object.assign({}, all, { _v: v })); guardarMeta(id, meta); return true;
+    }
+    aplicar(id, val, meta, true); NUBE.stats.completas++;
+    // las secciones sin versión en la nube se numeran ahora
+    const up = {}; const v = Object.assign({}, rv || {});
+    Object.keys(val).forEach(k => { if (!v[k]) { v[k] = nuevaVer(); up[k] = v[k]; } });
+    meta.v = v; guardarMeta(id, meta);
+    if (Object.keys(up).length) await base.child('_v').update(up);
+    return true;
+  }
+
+  escucharRes = function (id) {
+    if (!NUBE.on) return;
+    if (NUBE.resRef) { try { NUBE.resRef.off(); } catch (e) { } NUBE.resRef = null; }
+    if (NUBE.vRef) { try { NUBE.vRef.off(); } catch (e) { } }
+    NUBE.resId = id; NUBE.resReady = false; NUBE.sent.res = {};
+    const base = NUBE.db.ref('gw/r/' + id); const vRef = base.child('_v'); NUBE.vRef = vRef;
+    let ocupado = Promise.resolve();
+    vRef.on('value', s => {
+      ocupado = ocupado.then(async () => {
+        if (id !== RES || NUBE.vRef !== vRef) return;
+        const rv = s.val(); const meta = leerMeta(id); meta.v = meta.v || {}; meta.h = meta.h || {};
+        const primera = !NUBE.resReady;
+        try {
+          if (primera && (!rv || !Object.keys(meta.v).length || !meta.full || Date.now() - meta.full > DIA)) {
+            await descargaCompleta(id, base, rv);
+          } else if (rv) {
+            const cambiadas = Object.keys(rv).filter(k => rv[k] !== meta.v[k]);
+            if (primera) { // lo que no cambió en la nube ya está igual en el teléfono
+              Object.keys(meta.h).forEach(k => { NUBE.sent.res[k] = meta.h[k]; });
+            }
+            if (cambiadas.length) {
+              const val = {};
+              await Promise.all(cambiadas.map(async k => { const x = (await base.child(k).once('value')).val(); if (x !== null) val[k] = x; }));
+              NUBE.stats.bajadas += cambiadas.length;
+              cambiadas.forEach(k => { meta.v[k] = rv[k]; });
+              aplicar(id, val, meta, primera); guardarMeta(id, meta);
+            } else if (primera) { guardarMeta(id, meta); }
+          }
+        } catch (e) { errNube(e); if (/permission/i.test(String(e && e.message))) return usarMetodoAnterior(id, e.message); }
+        NUBE.resReady = true;
+        if (primera) nubeRes(); // sube lo que se cambió sin internet
+        refrescarVista();
+      });
+    }, e => { errNube(e); usarMetodoAnterior(id, e && e.message); });
+  };
+
+  nubeRes = function () {
+    if (!NUBE.on || !DB || !RES) return;
+    if (NUBE.resId !== RES) { escucharRes(RES); return; }
+    if (!NUBE.resReady) return;
+    const s = serial(DB), u = {}, meta = leerMeta(RES); meta.v = meta.v || {}; meta.h = meta.h || {};
+    const ks = [];
+    Object.keys(s).forEach(k => { const hh = h32(s[k]); if (hh !== NUBE.sent.res[k]) { const ver = nuevaVer(); u[k] = s[k]; u['_v/' + k] = ver; meta.v[k] = ver; meta.h[k] = hh; NUBE.sent.res[k] = hh; ks.push(k); } });
+    if (!ks.length) return;
+    guardarMeta(RES, meta);
+    NUBE.pend = (NUBE.pend || 0) + 1; const rid = RES;
+    NUBE.lastPush = NUBE.db.ref('gw/r/' + rid).update(u).then(() => { NUBE.pend--; return true; }, e => {
+      NUBE.pend--; ks.forEach(k => delete NUBE.sent.res[k]); errNube(e);
+      if (/permission/i.test(String(e && e.message))) usarMetodoAnterior(rid, e.message);
+      return false;
+    });
+    return NUBE.lastPush;
+  };
+
+  nubeSetRes = function (id, d) {
+    if (!NUBE.on) return; const all = serial(d); const v = {}; Object.keys(all).forEach(k => v[k] = nuevaVer());
+    NUBE.db.ref('gw/r/' + id).set(Object.assign({}, all, { _v: v })).catch(errNube);
+    if (id === RES) { const meta = { v, h: {}, full: Date.now() }; Object.keys(all).forEach(k => { meta.h[k] = h32(all[k]); NUBE.sent.res[k] = meta.h[k]; }); guardarMeta(id, meta); }
+  };
+
+  window.escucharRes = escucharRes; window.nubeRes = nubeRes; window.nubeSetRes = nubeSetRes;
+  // si la nube ya estaba escuchando con el método anterior, cambiar al nuevo
+  try { if (NUBE.on && RES && NUBE.resRef) escucharRes(RES); } catch (e) { }
+})();
+
+/* =========================================================
+   FOTOS LIVIANAS AUTOMÁTICAS
+   Cualquier foto que se suba en la app (comprobantes, reportes, DUI,
+   productos, logos, selfies, etc.) se revisa ANTES de usarse:
+   - Si mide más de 1600 px o pesa más de 500 KB, la app la reduce sola
+     (máximo 1600 px, JPG de buena calidad). El usuario no hace nada.
+   - Fotos de más de 25 MB o archivos que no son imagen se rechazan
+     con un mensaje claro. Los PDF tienen un máximo de 3 MB.
+   ========================================================= */
+(function () {
+  const MAX_LADO = 1600, MAX_BYTES = 500 * 1024, MAX_ORIG = 25 * 1024 * 1024, MAX_PDF = 3 * 1024 * 1024;
+  const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+  window.GW_FOTOS = { MAX_LADO, MAX_BYTES };
+
+  function cargar(file) {
+    return new Promise((res, rej) => {
+      if (window.createImageBitmap) { createImageBitmap(file, { imageOrientation: 'from-image' }).then(res, () => viaImg()); } else viaImg();
+      function viaImg() { const u = URL.createObjectURL(file); const i = new Image(); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('img')); }; i.src = u; }
+    });
+  }
+  async function reducir(file) {
+    const img = await cargar(file); const w0 = img.width, h0 = img.height;
+    if (file.size <= MAX_BYTES && Math.max(w0, h0) <= MAX_LADO) return null; // ya es liviana
+    let lado = Math.min(MAX_LADO, Math.max(w0, h0)), q = 0.82, blob = null;
+    const png = /png|webp|gif/.test(file.type) && file.size < 2 * 1024 * 1024; // logos con transparencia
+    for (let intento = 0; intento < 5; intento++) {
+      const s = lado / Math.max(w0, h0); const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w0 * s)); c.height = Math.max(1, Math.round(h0 * s));
+      const x = c.getContext('2d'); if (!png) { x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); } x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
+      blob = await new Promise(r => c.toBlob(r, png ? 'image/webp' : 'image/jpeg', q));
+      if (!blob) break;
+      if (blob.size <= MAX_BYTES) break;
+      q = Math.max(0.6, q - 0.08); lado = Math.round(lado * 0.82);
+    }
+    try { img.close && img.close(); } catch (e) { }
+    if (!blob || blob.size >= file.size) return null;
+    const ext = blob.type === 'image/webp' ? '.webp' : '.jpg';
+    return new File([blob], (file.name || 'foto').replace(/\.\w+$/, '') + ext, { type: blob.type, lastModified: Date.now() });
+  }
+
+  document.addEventListener('change', async e => {
+    const inp = e.target;
+    if (!inp || inp.tagName !== 'INPUT' || inp.type !== 'file' || inp.__gwListo || !inp.files || !inp.files.length) return;
+    const fs = [...inp.files];
+    const hayImg = fs.some(f => f.type.startsWith('image/')), hayPdf = fs.some(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!hayImg && !hayPdf) return; // excel, csv, json: sin cambios
+    const grande = fs.find(f => f.type.startsWith('image/') && f.size > MAX_ORIG);
+    const pdfGrande = fs.find(f => (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) && f.size > MAX_PDF);
+    if (grande || pdfGrande) {
+      e.stopImmediatePropagation(); e.preventDefault(); inp.value = '';
+      toast(grande ? `La foto pesa ${kb(grande.size)}. El máximo es 25 MB; toma la foto de nuevo con menos resolución.` : `El PDF pesa ${kb(pdfGrande.size)}. El máximo es 3 MB; mejor sube una foto del documento.`);
+      return;
+    }
+    if (!hayImg) return;
+    // detener el evento, reducir y volver a dispararlo con la foto liviana
+    e.stopImmediatePropagation();
+    let antes = 0, despues = 0, cambiadas = 0; const out = [];
+    try {
+      for (const f of fs) {
+        if (!f.type.startsWith('image/')) { out.push(f); continue; }
+        let r = null; try { r = await reducir(f); } catch (x) { r = null; }
+        if (r) { antes += f.size; despues += r.size; cambiadas++; out.push(r); } else out.push(f);
+      }
+      if (cambiadas) { const dt = new DataTransfer(); out.forEach(f => dt.items.add(f)); inp.files = dt.files; }
+    } catch (x) { console.warn('fotos', x); }
+    inp.__gwListo = true;
+    try { inp.dispatchEvent(new Event('change', { bubbles: true })); } finally { setTimeout(() => { inp.__gwListo = false; }, 0); }
+    if (cambiadas) toast(`Foto optimizada: ${kb(antes)} → ${kb(despues)}`);
+  }, true);
 })();
 
 /* ---------------- Arranque ---------------- */
