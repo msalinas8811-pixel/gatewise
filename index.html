@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.20-46';
+const APP_VERSION='2026.11.20-47';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -6314,7 +6314,7 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
     const R = [];
     (DB.pases || []).forEach(p => (p.ingresos || []).forEach(i => {
       if (!i || !i.entrada) return;
-      R.push({ cat: catPase(p), nombre: p.nombre || '', casa: casaNom(p.casaId), detalle: p.detalle || '', porton: portonNom(i.porton || p.porton), entrada: i.entrada, salida: i.salida || null,
+      R.push({ cat: catPase(p), nombre: p.nombre || '', casa: casaNom(p.casaId), detalle: [p.detalle || '', (i.acomp && i.acomp.length) ? '+' + i.acomp.length + ' acompañante(s): ' + i.acomp.map(x => x.nombre).join(', ') : ''].filter(Boolean).join(' · '), porton: portonNom(i.porton || p.porton), entrada: i.entrada, salida: i.salida || null,
         guardia: nomU(i.guardiaId), autorizo: nomU(p.creadoPor), placa: p.placa || '', dui: p.dui || '', pin: p.pin || '', tel: p.tel || '' });
     }));
     if (typeof acDB === 'function') {
@@ -7423,6 +7423,223 @@ window.GWQR = GWQR;
 .qr-cam video{width:100%;height:100%;object-fit:cover}
 .qr-marco{position:absolute;inset:18%;border:4px solid rgba(255,255,255,.9);border-radius:18px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .ez-big.ez-3>:last-child{grid-column:1/-1;min-height:110px}
+`;
+  document.head.appendChild(st);
+})();
+
+/* =========================================================
+   ACOMPAÑANTES EN TODOS LOS ACCESOS
+   - El residente agrega acompañantes al crear el pase o después
+     (nombre, DUI opcional y relación).
+   - Portería los agrega en "Llegó alguien sin pase" y también al
+     momento del ingreso ("Llegó con alguien más").
+   - Al marcar el ingreso, el vigilante marca quiénes entraron; queda
+     en la bitácora y en el aviso al residente.
+   ========================================================= */
+(function () {
+  const RELS = ['Familiar', 'Amigo(a)', 'Ayudante', 'Compañero(a) de trabajo', 'Niño(a)', 'Otro'];
+  const listaTxt = a => (a || []).map(x => x.nombre).join(', ');
+  window.acompTxt = listaTxt;
+
+  /* ---------- formulario reutilizable ---------- */
+  const fila = (x) => `<div class="ac-row">
+      <input name="ac_nombre" placeholder="Nombre completo" value="${esc(x && x.nombre || '')}" aria-label="Nombre del acompañante" required>
+      <div class="ac-2"><input name="ac_dui" placeholder="DUI (opcional)" value="${esc(x && x.dui || '')}" inputmode="numeric" maxlength="10" autocomplete="off" aria-label="DUI del acompañante">
+      <select name="ac_rel" aria-label="Relación">${RELS.map(r => `<option ${x && x.rel === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+      <button type="button" class="ac-x" aria-label="Quitar acompañante" onclick="this.closest('.ac-row').remove();acContar(this)">${ic('x', 18)}</button></div>`;
+  window.acFila = fila;
+  const bloque = (lista, sub) => `<div class="ac-box"><div class="ac-h">${ic('users', 18)}<b>Acompañantes</b><span class="ac-n">${(lista || []).length || ''}</span></div>
+      <small class="ac-sub">${sub || 'Personas que llegan junto con esta persona. Opcional.'}</small>
+      <div class="ac-list">${(lista || []).map(fila).join('')}</div>
+      <button type="button" class="btn ghost block ac-add" onclick="acAgregar(this)">${ic('userplus', 18)} Agregar acompañante</button></div>`;
+  window.acBloque = bloque;
+  window.acAgregar = function (btn) {
+    const box = btn.closest('.ac-box'); const l = box.querySelector('.ac-list'); l.insertAdjacentHTML('beforeend', fila()); acContar(btn);
+    const ins = l.querySelectorAll('input[name=ac_nombre]'); const last = ins[ins.length - 1]; if (last) last.focus();
+  };
+  window.acContar = function (el) { try { const box = el.closest('.ac-box') || document.querySelector('#ov .ac-box'); const n = box.querySelectorAll('.ac-row').length; box.querySelector('.ac-n').textContent = n || ''; } catch (e) { } };
+  function leer(form) {
+    if (!form) return [];
+    const f = new FormData(form); const N = f.getAll('ac_nombre'), D = f.getAll('ac_dui'), R = f.getAll('ac_rel');
+    const out = [];
+    for (let i = 0; i < N.length; i++) {
+      const nombre = String(N[i] || '').trim(); if (!nombre) continue;
+      const dui = String(D[i] || '').trim();
+      if (dui && typeof duiOk === 'function' && !duiOk(dui)) { toast('DUI incompleto del acompañante «' + nombre + '». Formato: 00000000-0'); return false; }
+      out.push({ nombre, dui, rel: String(R[i] || '') });
+    }
+    return out;
+  }
+  const meterEnForm = (html) => {
+    const f = document.querySelector('#ov form'); if (!f) return;
+    const ref = f.querySelector('.alert.info') || [...f.querySelectorAll('button')].filter(b => b.type !== 'button').pop();
+    if (ref) ref.insertAdjacentHTML('beforebegin', html); else f.insertAdjacentHTML('beforeend', html);
+  };
+
+  /* ---------- residente: crear pase ---------- */
+  if (typeof nuevoPase === 'function') {
+    const bn = nuevoPase;
+    nuevoPase = function (tipo) { const r = bn.apply(this, arguments); try { meterEnForm(bloque([], tipo === 'personal' ? 'Ayudantes o compañeros que vienen con esta persona. Opcional.' : '')); } catch (e) { } return r; };
+    window.nuevoPase = nuevoPase;
+  }
+  if (typeof crearPase === 'function') {
+    const bc = crearPase;
+    crearPase = function (e) {
+      const ac = leer(e && e.target); if (ac === false) { e.preventDefault(); return; }
+      const n = DB.pases.length; const r = bc.apply(this, arguments);
+      if (DB.pases.length > n && ac.length) { const p = DB.pases[DB.pases.length - 1]; p.acomp = ac; save(); verPase(p.id, true); }
+      return r;
+    };
+    window.crearPase = crearPase;
+  }
+
+  /* ---------- residente: ver y editar acompañantes ---------- */
+  if (typeof verPase === 'function') {
+    const bv = verPase;
+    verPase = function (id) {
+      const r = bv.apply(this, arguments);
+      try {
+        const p = DB.pases.find(x => x.id === id); const kv = document.querySelector('#ov .kv'); if (!p || !kv) return r;
+        const act = p.estado === 'activo' && p.hasta >= ymd();
+        const L = p.acomp || [];
+        kv.insertAdjacentHTML('afterend', `<div class="ac-ver"><div class="ac-h">${ic('users', 18)}<b>Acompañantes</b><span class="ac-n">${L.length || ''}</span></div>
+          ${L.length ? `<ul class="ac-ul">${L.map(x => `<li><b>${esc(x.nombre)}</b><small>${esc([x.rel, x.dui ? 'DUI ' + x.dui : ''].filter(Boolean).join(' · '))}</small></li>`).join('')}</ul>` : '<p class="note" style="margin:4px 0">Sin acompañantes.</p>'}
+          ${act ? `<button class="btn ghost block" onclick="acEditar('${p.id}')">${ic('userplus', 18)} ${L.length ? 'Editar acompañantes' : 'Agregar acompañantes'}</button>` : ''}</div>`);
+      } catch (e) { }
+      return r;
+    };
+    window.verPase = verPase;
+  }
+  window.acEditar = function (id) {
+    const p = DB.pases.find(x => x.id === id); if (!p) return;
+    sheet('Acompañantes de ' + esc(p.nombre), `<form onsubmit="acGuardar(event,'${p.id}')">${bloque(p.acomp && p.acomp.length ? p.acomp : [{}])}<button class="btn block big-ok">Guardar</button></form>`);
+  };
+  window.acGuardar = function (e, id) {
+    e.preventDefault(); const p = DB.pases.find(x => x.id === id); const ac = leer(e.target); if (!p || ac === false) return;
+    p.acomp = ac; save(); closeSheet(); render(); toast('Acompañantes guardados'); setTimeout(() => verPase(p.id), 60);
+  };
+  if (typeof textoPase === 'function') {
+    const bt = textoPase;
+    textoPase = function (p) { const t = bt.apply(this, arguments); return p && p.acomp && p.acomp.length ? t + `\nAcompañantes (${p.acomp.length}): ${listaTxt(p.acomp)}` : t; };
+    window.textoPase = textoPase;
+  }
+
+  /* ---------- portería: persona sin pase ---------- */
+  if (VIEWS.vigilante && VIEWS.vigilante.sinpase) {
+    const bs = VIEWS.vigilante.sinpase;
+    VIEWS.vigilante.sinpase = function () {
+      const h = bs.apply(this, arguments); if (typeof h !== 'string') return h;
+      const i = h.lastIndexOf('<button class="btn'); const j = h.indexOf('</form>');
+      const blk = bloque([], '¿Viene con más personas? Agrégalas para que el residente las autorice.');
+      if (i > 0 && j > i) return h.slice(0, i) + blk + h.slice(i);
+      return j > 0 ? h.slice(0, j) + blk + h.slice(j) : h;
+    };
+  }
+  if (typeof solicitarAut === 'function') {
+    const bsa = solicitarAut;
+    solicitarAut = function (e) {
+      const ac = leer(e && e.target); if (ac === false) { e.preventDefault(); return; }
+      const n = DB.autorizaciones.length; const r = bsa.apply(this, arguments);
+      if (DB.autorizaciones.length > n && ac.length) {
+        const a = DB.autorizaciones[0]; a.acomp = ac;
+        const nt = DB.notifs.find(x => x.fecha === a.fecha || (x.texto || '').includes(a.nombre)); if (nt) nt.texto += ` Viene con ${ac.length} acompañante(s): ${listaTxt(ac)}.`;
+        save();
+      }
+      return r;
+    };
+    window.solicitarAut = solicitarAut;
+  }
+  if (typeof responderAut === 'function') {
+    const bra = responderAut;
+    responderAut = function (id, ok) {
+      const a = DB.autorizaciones.find(x => x.id === id); const r = bra.apply(this, arguments);
+      try { if (ok && a && a.paseId && a.acomp && a.acomp.length) { const p = DB.pases.find(x => x.id === a.paseId); if (p) { p.acomp = a.acomp.slice(); save(); } } } catch (e) { }
+      return r;
+    };
+    window.responderAut = responderAut;
+  }
+  if (typeof autCard === 'function') {
+    const bac = autCard;
+    autCard = function (a) { const h = bac.apply(this, arguments); if (!a || !a.acomp || !a.acomp.length || typeof h !== 'string') return h; const i = h.indexOf('</b>'); return i > 0 ? h.slice(0, i + 4) + `<div class="sm ac-linea">${ic('users', 14)} Con ${a.acomp.length} acompañante(s): ${esc(listaTxt(a.acomp))}</div>` + h.slice(i + 4) : h; };
+    window.autCard = autCard;
+  }
+
+  /* ---------- portería: listas y validación ---------- */
+  if (typeof paseItemVig === 'function') {
+    const bpi = paseItemVig;
+    paseItemVig = function (p) { const h = bpi.apply(this, arguments); const n = p && p.acomp ? p.acomp.length : 0; if (!n || typeof h !== 'string') return h; const i = h.indexOf('</b>'); return i > 0 ? h.slice(0, i + 4) + ` <span class="ac-chip">+${n}</span>` + h.slice(i + 4) : h; };
+    window.paseItemVig = paseItemVig;
+  }
+  if (typeof verPaseVig === 'function') {
+    const bvv = verPaseVig;
+    verPaseVig = function (id) {
+      const r = bvv.apply(this, arguments);
+      try {
+        const p = DB.pases.find(x => x.id === id); if (!p) return r;
+        const d = dentro(p), ok = vigenteHoy(p); const L = p.acomp || [];
+        const kv = document.querySelector('#ov .card.kv') || document.querySelector('#ov .kv'); if (!kv) return r;
+        const ultimo = d ? (p.ingresos[p.ingresos.length - 1].acomp || []) : null;
+        let h = `<div class="ac-ver ac-vig"><div class="ac-h">${ic('users', 18)}<b>Acompañantes</b><span class="ac-n">${L.length || ''}</span></div>`;
+        if (d) h += ultimo.length ? `<p class="sm" style="margin:4px 0">Entraron con: <b>${esc(listaTxt(ultimo))}</b></p>` : `<p class="note" style="margin:4px 0">Entró sin acompañantes.</p>`;
+        else if (L.length) h += `<p class="sm muted" style="margin:2px 0 6px">Marca quiénes vienen y pide su DUI:</p>${L.map((x, k) => `<label class="ac-chk"><input type="checkbox" name="acEntra" value="${k}" checked><span><b>${esc(x.nombre)}</b><small>${esc([x.rel, x.dui ? 'DUI ' + x.dui : 'Sin DUI registrado'].filter(Boolean).join(' · '))}</small></span></label>`).join('')}`;
+        else h += `<p class="note" style="margin:4px 0">No se registraron acompañantes.</p>`;
+        if (!d && ok) h += `<details class="ac-mas"><summary>${ic('userplus', 16)} Llegó con alguien más</summary><div class="ac-nuevo"><input id="acNuevoNom" placeholder="Nombre completo" aria-label="Nombre"><input id="acNuevoDui" placeholder="DUI (opcional)" inputmode="numeric" maxlength="10" aria-label="DUI"><button type="button" class="btn smb" onclick="acVigAgregar('${p.id}')">Agregar</button></div></details>`;
+        kv.insertAdjacentHTML('afterend', h + '</div>');
+      } catch (e) { console.warn('acomp vig', e); }
+      return r;
+    };
+    window.verPaseVig = verPaseVig;
+  }
+  window.acVigAgregar = function (id) {
+    const p = DB.pases.find(x => x.id === id); if (!p) return;
+    const n = (document.getElementById('acNuevoNom').value || '').trim(); const du = (document.getElementById('acNuevoDui').value || '').trim();
+    if (!n) return toast('Escribe el nombre');
+    if (du && typeof duiOk === 'function' && !duiOk(du)) return toast('DUI incompleto. Formato: 00000000-0');
+    p.acomp = (p.acomp || []).concat([{ nombre: n, dui: du, rel: 'Agregado en portería', porVig: S.user.id }]); save();
+    verPaseVig(p.id); toast('Acompañante agregado');
+  };
+  if (typeof marcarIngreso === 'function') {
+    const bmi = marcarIngreso;
+    marcarIngreso = function (id) {
+      const p = DB.pases.find(x => x.id === id);
+      const sel = [...document.querySelectorAll('#ov input[name=acEntra]:checked')].map(i => +i.value);
+      const antes = p ? p.ingresos.length : 0; const nAnt = DB.notifs.length;
+      const r = bmi.apply(this, arguments);
+      try {
+        if (p && p.ingresos.length > antes && p.acomp && p.acomp.length) {
+          const ent = sel.map(k => p.acomp[k]).filter(Boolean);
+          p.ingresos[p.ingresos.length - 1].acomp = ent.map(x => ({ nombre: x.nombre, dui: x.dui || '' }));
+          if (ent.length) DB.notifs.slice(0, Math.max(1, DB.notifs.length - nAnt)).forEach(nt => { if ((nt.titulo || '').includes(p.nombre)) nt.texto += ` · Con ${ent.length} acompañante(s): ${listaTxt(ent)}`; });
+          save();
+        }
+      } catch (e) { }
+      return r;
+    };
+    window.marcarIngreso = marcarIngreso;
+  }
+
+  /* ---------- estilos ---------- */
+  const st = document.createElement('style'); st.id = 'gw-acomp-css';
+  st.textContent = `
+.ac-box,.ac-ver{border:1px solid var(--line);border-radius:16px;padding:12px;margin:12px 0;background:var(--card,#fff)}
+.ac-h{display:flex;align-items:center;gap:8px}.ac-h b{font-size:16px;flex:1}
+.ac-n{min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:var(--pri,#0f766e);color:#fff;font-size:13px;font-weight:700;display:inline-grid;place-items:center}.ac-n:empty{display:none}
+.ac-sub{display:block;color:var(--muted);font-size:13.5px;margin:2px 0 6px}
+.ac-row{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px 40px 10px 10px;border-radius:12px;background:var(--bg,#f6f8f8);margin-bottom:8px;animation:acIn 180ms cubic-bezier(.23,1,.32,1)}
+@keyframes acIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.ac-row{animation:none}}
+.ac-row input,.ac-row select{width:100%;min-height:46px}
+.ac-2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ac-x{position:absolute;top:8px;right:6px;width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.ac-add{margin-top:4px}
+.ac-ul{list-style:none;margin:6px 0 8px;padding:0;display:flex;flex-direction:column;gap:6px}
+.ac-ul li{display:flex;flex-direction:column;padding:8px 10px;border-radius:10px;background:var(--bg,#f6f8f8)}.ac-ul small{color:var(--muted)}
+.ac-chk{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:12px;background:var(--bg,#f6f8f8);margin-bottom:6px;cursor:pointer}
+.ac-chk input{width:22px;height:22px;flex:none;margin-top:2px;accent-color:#15803d}.ac-chk span{display:flex;flex-direction:column}.ac-chk small{color:var(--muted)}
+.ac-mas summary{cursor:pointer;color:var(--pri,#0f766e);font-weight:700;display:flex;align-items:center;gap:6px;min-height:44px}
+.ac-nuevo{display:grid;grid-template-columns:1fr;gap:6px}.ac-nuevo input{min-height:46px}
+.ac-chip{display:inline-block;padding:1px 8px;border-radius:999px;background:rgba(15,118,110,.12);color:var(--pri,#0f766e);font-size:13px;font-weight:800}
+.ac-linea{display:flex;align-items:center;gap:6px;margin-top:4px}
 `;
   document.head.appendChild(st);
 })();
