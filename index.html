@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-55';
+const APP_VERSION='2026.11.21-56';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8153,103 +8153,153 @@ window.GWQR = GWQR;
 })();
 
 /* =========================================================
-   INVITAR A INSTALAR LA APP (administración)
-   Más → "Invitar a instalar la app":
-   - Enlace oficial de instalación con su código QR.
-   - Compartir por WhatsApp, copiar el enlace o descargar un cartel
-     con el QR para imprimir y pegar en portería o en la caseta.
-   - "Enviar aviso a todos": publica un aviso con el enlace y notifica
-     a residentes, inquilinos, vigilancia y cobradores.
-   - Muestra si el archivo para Android (GateWise.apk) ya está subido.
+   INSTALAR LA APP (administración)
+   Más → "Instalar la app en teléfonos":
+   1. App para Android: la administración sube el archivo GateWise.apk
+      (queda guardado en la nube de la residencial).
+   2. Enlace para Android: descarga el APK + guía paso a paso.
+   3. Enlace para iPhone: guía para agregarla desde Safari.
+   Cada enlace se comparte por WhatsApp, se copia o se muestra en QR.
+   También: cartel para imprimir y aviso a todos dentro de la app.
    ========================================================= */
 (function () {
-  const enlace = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'instalar.html';
-  window.gwEnlaceInstalar = enlace;
+  const PROD = () => window.GATEWISE_MODO === 'produccion';
+  const base = () => location.origin + location.pathname.replace(/[^/]*$/, '');
   const nombreRes = () => (DB && DB.residencial && DB.residencial.nombre) || 'la residencial';
-  const texto = () => `📲 Instala la app de ${nombreRes()}\n\nCon GateWise das acceso a tus visitas, pagas tu cuota, envías reportes y recibes los avisos oficiales.\n\nEntra aquí y sigue los pasos (iPhone, Android o computadora):\n${enlace()}\n\nTu usuario y contraseña te los da la administración.`;
+  const apkInfo = () => (DB && DB.apkApp && DB.apkApp.url) ? DB.apkApp : null;
+  const qs = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+  const enlace = so => base() + 'instalar.html' + (so ? '?' + qs({ so, n: nombreRes(), apk: so === 'android' && apkInfo() ? apkInfo().url : '' }) : '?' + qs({ n: nombreRes(), apk: apkInfo() ? apkInfo().url : '' }));
+  window.gwEnlaceInstalar = () => enlace('');
+  const textoDe = so => so === 'android'
+    ? `📲 *App de ${nombreRes()} para Android*\n\n1. Abre este enlace y toca *Descargar GateWise para Android*:\n${enlace('android')}\n2. Abre el archivo descargado y toca *Instalar* (si lo pide, permite instalar desde esta fuente).\n3. Entra con el usuario y la contraseña que te dio la administración.\n\nEn el enlace están los pasos con detalle.`
+    : so === 'iphone'
+      ? `📲 *App de ${nombreRes()} para iPhone*\n\n1. Abre este enlace en *Safari*:\n${enlace('iphone')}\n2. Toca *Compartir* (cuadro con flecha ↑) y luego *Agregar a la pantalla de inicio*.\n3. Abre GateWise desde el ícono y entra con tu usuario y contraseña.\n\nEn el enlace están los pasos con detalle.`
+      : `📲 Instala la app de ${nombreRes()}\n\nCon GateWise das acceso a tus visitas, pagas tu cuota, envías reportes y recibes los avisos oficiales.\n\nEntra aquí y sigue los pasos (iPhone, Android o computadora):\n${enlace('')}\n\nTu usuario y contraseña te los da la administración.`;
+  const puedeSubir = () => S.user && (S.user.rol === 'admin' || S.imp);
+  const mb = n => (n / 1048576).toFixed(1) + ' MB';
+  let MOSTRAR_QR = null;
+
+  function bloque(so, titulo, icono, desc) {
+    const L = enlace(so);
+    return `<div class="card ia-blq">
+      <div class="ia-h"><span class="ia-ic">${icono}</span><div><b>${titulo}</b><div class="note" style="margin:2px 0 0">${desc}</div></div></div>
+      ${MOSTRAR_QR === so ? `<div class="ia-qr">${typeof GWQR !== 'undefined' ? GWQR.svg(L, { px: 220 }) : ''}<div class="note">Que lo escaneen con la cámara del teléfono</div></div>` : ''}
+      <div class="ia-btns">
+        <a class="btn ia-wa" href="https://wa.me/?text=${encodeURIComponent(textoDe(so))}" target="_blank" rel="noopener">${ic('share', 18)} WhatsApp</a>
+        <button class="btn ghost" onclick="iaCopiar('${so}')">Copiar enlace</button>
+        <button class="btn ghost" onclick="iaQR('${so}')">${MOSTRAR_QR === so ? 'Ocultar QR' : 'Ver QR'}</button>
+        <a class="btn ghost" href="${esc(L)}" target="_blank" rel="noopener">Ver la guía</a>
+      </div></div>`;
+  }
 
   window.vInvitarApp = function () {
-    const L = enlace();
+    const a = apkInfo();
     setTimeout(revisarApk, 50);
-    return `<h2>Invitar a instalar la app</h2>
-      <p class="note" style="margin-top:-4px">Comparte este enlace con los vecinos. Ahí están los pasos para iPhone, Android y computadora.</p>
-      <div class="card ia-card">
-        <div class="ia-qr">${typeof GWQR !== 'undefined' ? GWQR.svg(L, { px: 220 }) : ''}</div>
-        <div class="ia-link" id="iaLink">${esc(L)}</div>
-        <div class="ia-btns">
-          <a class="btn ia-wa" href="https://wa.me/?text=${encodeURIComponent(texto())}" target="_blank" rel="noopener">${ic('share', 18)} Enviar por WhatsApp</a>
-          <button class="btn ghost" onclick="iaCopiar()">Copiar enlace</button>
-          <button class="btn ghost" onclick="iaCartel()">${ic('download', 18)} Cartel para imprimir</button>
-        </div>
+    const subir = puedeSubir() ? `<label class="btn block big-ok ia-subir">${ic('download', 18)} ${a ? 'Cambiar el archivo APK' : 'Subir el archivo APK'}<input type="file" accept=".apk,application/vnd.android.package-archive" hidden onchange="iaSubirApk(this)"></label>
+        <div id="iaProg" class="ia-prog oculto"><div></div></div>` : '';
+    return `<h2>Instalar la app en teléfonos</h2>
+      <p class="note" style="margin-top:-4px">Sube la app de Android y comparte el enlace con los vecinos. Cada enlace lleva la guía paso a paso.</p>
+      <h3>1. App para Android</h3>
+      <div class="card ia-apk" id="iaApk">
+        ${a ? `<b>GateWise.apk ${chip('Subida', 'ok')}</b><p class="note" style="margin:4px 0 10px">${a.tam ? mb(a.tam) + ' · ' : ''}subida el ${fFecha(a.fecha)}${a.version ? ' · versión ' + esc(a.version) : ''}</p>` : `<b>App para Android</b><p class="note" style="margin:4px 0 10px">Revisando…</p>`}
+        ${subir}
+        <p class="note" style="margin:8px 0 0">El archivo se genera en Android Studio (Build › Build APK). Máximo 150 MB.</p>
       </div>
-      <div class="card ia-apk" id="iaApk"><b>App para Android</b><p class="note" style="margin:4px 0 0">Revisando…</p></div>
-      <h3>Avisar a todos dentro de la app</h3>
-      <p class="note" style="margin-top:-4px">Publica un aviso con el enlace y les llega una notificación a todos los usuarios. Sirve para que lo instalen en otro teléfono o lo compartan con su familia.</p>
-      <button class="btn block big-ok" onclick="iaAviso()">${ic('mega', 18)} Enviar aviso a todos</button>
-      <h3>Cómo se ve el mensaje</h3>
-      <div class="ia-msg">${esc(texto()).replace(/\n/g, '<br>')}</div>`;
+      <h3>2. Compartir con los vecinos</h3>
+      ${bloque('android', 'Enlace para Android', '🤖', a ? 'Descarga la app y muestra cómo instalarla.' : 'Mientras no subas el APK, enseña a instalarla desde Chrome.')}
+      ${bloque('iphone', 'Enlace para iPhone', '📱', 'Guía para agregarla desde Safari a la pantalla de inicio.')}
+      ${bloque('', 'Un solo enlace para todos', '🔗', 'Detecta el tipo de teléfono y muestra los pasos correctos.')}
+      <button class="btn ghost block" onclick="iaCartel()">${ic('download', 18)} Cartel con QR para imprimir</button>
+      <h3>3. Avisar a todos dentro de la app</h3>
+      <p class="note" style="margin-top:-4px">Publica un aviso con los enlaces y les llega una notificación a todos los usuarios.</p>
+      <button class="btn block big-ok" onclick="iaAviso()">${ic('mega', 18)} Enviar aviso a todos</button>`;
   };
+
   async function revisarApk() {
-    const el = document.getElementById('iaApk'); if (!el) return;
+    const el = document.getElementById('iaApk'); if (!el || apkInfo()) return;
+    const b = el.querySelector('b'), p = el.querySelector('p');
     try {
       const r = await fetch('GateWise.apk', { method: 'HEAD', cache: 'no-store' });
-      if (r.ok) {
-        const n = +r.headers.get('content-length') || 0; const f = r.headers.get('last-modified');
-        el.innerHTML = `<b>App para Android ${chip('Disponible', 'ok')}</b><p class="note" style="margin:4px 0 0">GateWise.apk${n ? ' · ' + (n / 1048576).toFixed(1) + ' MB' : ''}${f ? ' · subida el ' + new Date(f).toLocaleDateString('es-SV') : ''}. Los vecinos con Android la descargan desde el enlace.</p>`;
-      } else {
-        el.innerHTML = `<b>App para Android ${chip('Sin subir', 'warn')}</b><p class="note" style="margin:4px 0 0">Todavía no se ha subido el archivo de Android. Mientras tanto, la página de instalación enseña a instalarla desde Chrome, que funciona igual.</p>`;
-      }
-    } catch (e) { el.innerHTML = `<b>App para Android</b><p class="note" style="margin:4px 0 0">No se pudo revisar (sin internet).</p>`; }
+      if (r.ok) { const n = +r.headers.get('content-length') || 0; b.innerHTML = `GateWise.apk ${chip('Disponible', 'ok')}`; p.textContent = `Versión general de GateWise${n ? ' · ' + mb(n) : ''}. Puedes subir la tuya si la actualizaste.`; }
+      else { b.innerHTML = `App para Android ${chip('Sin subir', 'warn')}`; p.textContent = 'Todavía no hay archivo de Android. Súbelo con el botón de abajo.'; }
+    } catch (e) { p.textContent = 'No se pudo revisar (sin internet).'; }
   }
-  window.iaCopiar = async function () {
-    try { await navigator.clipboard.writeText(enlace()); toast('Enlace copiado'); }
-    catch (e) { const el = document.getElementById('iaLink'); if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } toast('Mantén presionado el enlace para copiarlo'); }
+
+  window.iaSubirApk = async function (inp) {
+    const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+    if (!/\.apk$/i.test(f.name)) return toast('Elige el archivo que termina en .apk');
+    if (f.size > 150 * 1048576) return toast('El archivo pesa ' + mb(f.size) + '. El máximo es 150 MB');
+    if (f.size < 100 * 1024) return toast('Ese archivo es muy pequeño; no parece una app de Android');
+    if (!PROD()) return toast('En el demo no se suben archivos. En la versión real queda guardado en la nube');
+    const box = document.getElementById('iaProg'); const bar = box && box.firstElementChild;
+    try {
+      if (!firebase.storage) await cargarJS('https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js');
+      const ref = firebase.storage().ref('apk/' + RES + '/GateWise.apk');
+      if (box) box.classList.remove('oculto');
+      const t = ref.put(f, { contentType: 'application/vnd.android.package-archive', contentDisposition: 'attachment; filename="GateWise.apk"', cacheControl: 'no-cache' });
+      t.on('state_changed', s => { if (bar) bar.style.width = Math.round(100 * s.bytesTransferred / s.totalBytes) + '%'; });
+      await t;
+      const url = await ref.getDownloadURL();
+      DB.apkApp = { url, nombre: f.name, tam: f.size, fecha: nowISO(), por: S.user.id };
+      save(); render(); toast('App de Android subida. Ya puedes compartir el enlace');
+    } catch (e) {
+      console.warn('apk', e); if (box) box.classList.add('oculto');
+      toast(/unauthorized|permission/i.test(String(e.code || e.message)) ? 'Solo la administración puede subir la app' : 'No se pudo subir: ' + (e.message || e));
+    }
+  };
+
+  window.iaQR = function (so) { MOSTRAR_QR = MOSTRAR_QR === so ? null : so; render(); };
+  window.iaCopiar = async function (so) {
+    const L = enlace(so);
+    try { await navigator.clipboard.writeText(L); toast('Enlace copiado'); }
+    catch (e) { sheet('Copia el enlace', `<p class="note">Mantén presionado y copia:</p><div class="ia-link" style="user-select:all">${esc(L)}</div>`); }
   };
   window.iaCartel = function () {
     if (typeof GWQR === 'undefined') return;
-    const L = enlace(); const { size, M } = GWQR.encode(L);
+    const L = enlace(''); const { size, M } = GWQR.encode(L);
     const W = 1240, H = 1754; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
     const grd = g.createLinearGradient(0, 0, W, 420); grd.addColorStop(0, '#0b3b3a'); grd.addColorStop(1, '#0f766e'); g.fillStyle = grd; g.fillRect(0, 0, W, 420);
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = 'bold 92px system-ui,sans-serif'; g.fillText('Instala la app', W / 2, 190);
     g.font = '48px system-ui,sans-serif'; g.fillText(nombreRes(), W / 2, 290);
-    const q = 760, mod = Math.floor(q / (size + 8)), qs = mod * (size + 8), x0 = (W - qs) / 2, y0 = 500;
+    const q = 760, mod = Math.floor(q / (size + 8)), qsz = mod * (size + 8), x0 = (W - qsz) / 2, y0 = 500;
     g.fillStyle = '#000'; for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (M[y][x]) g.fillRect(x0 + (x + 4) * mod, y0 + (y + 4) * mod, mod, mod);
-    g.fillStyle = '#0b3b3a'; g.font = 'bold 58px system-ui,sans-serif'; g.fillText('Escanea con la cámara del teléfono', W / 2, y0 + qs + 110);
+    g.fillStyle = '#0b3b3a'; g.font = 'bold 58px system-ui,sans-serif'; g.fillText('Escanea con la cámara del teléfono', W / 2, y0 + qsz + 110);
     g.fillStyle = '#334'; g.font = '40px system-ui,sans-serif';
-    ['Da acceso a tus visitas · Paga tu cuota', 'Envía reportes · Recibe los avisos oficiales', '', 'iPhone · Android · Computadora'].forEach((t, i) => g.fillText(t, W / 2, y0 + qs + 200 + i * 60));
-    g.fillStyle = '#55666a'; g.font = '30px system-ui,sans-serif'; g.fillText(L, W / 2, H - 80);
+    ['Da acceso a tus visitas · Paga tu cuota', 'Envía reportes · Recibe los avisos oficiales', '', 'iPhone · Android · Computadora'].forEach((t, i) => g.fillText(t, W / 2, y0 + qsz + 200 + i * 60));
     c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cartel-instalar-gatewise.png'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); toast('Cartel descargado'); }, 'image/png');
   };
   window.iaAviso = function () {
-    sheet('¿Enviar aviso a todos?', `<p>Se publicará un aviso con el enlace de instalación y les llegará una notificación a todos los usuarios activos.</p>
+    sheet('¿Enviar aviso a todos?', `<p>Se publicará un aviso con los enlaces de Android y iPhone y les llegará una notificación a todos los usuarios activos.</p>
       <button class="btn block big-ok" onclick="iaAvisoOk()">Sí, enviar</button><button class="btn ghost block" onclick="closeSheet()">Cancelar</button>`);
   };
   window.iaAvisoOk = function () {
-    const L = enlace();
-    const a = { id: uid(), categoria: 'general', titulo: '📲 Instala la app GateWise', cuerpo: `Instala la app de ${nombreRes()} en tu teléfono (iPhone, Android o computadora). Sigue los pasos en este enlace:\n${L}\n\nTambién puedes compartirlo con tu familia. Tu usuario y contraseña te los da la administración.`, cuando: '', prioridad: 'normal', fecha: nowISO(), enlace: L };
+    const a = { id: uid(), categoria: 'general', titulo: '📲 Instala la app GateWise', cuerpo: `Instala la app de ${nombreRes()} en tu teléfono.\n\n🤖 Android: ${enlace('android')}\n\n📱 iPhone (ábrelo en Safari): ${enlace('iphone')}\n\nEn cada enlace están los pasos. Tu usuario y contraseña te los da la administración.`, cuando: '', prioridad: 'normal', fecha: nowISO(), enlace: enlace('') };
     DB.avisos.unshift(a);
     const ids = DB.usuarios.filter(u => u.activo !== false && u.rol !== 'admin').map(u => u.id);
-    notificar(ids, '📲 Instala la app GateWise', 'Toca para ver el enlace de instalación', { tab: 'avisos' });
+    notificar(ids, '📲 Instala la app GateWise', 'Toca para ver cómo instalarla', { tab: 'avisos' });
     save(); closeSheet(); render(); toast('Aviso enviado a ' + ids.length + ' usuarios');
   };
 
   if (VIEWS.admin) {
     VIEWS.admin.instalarApp = vInvitarApp;
     const bm = VIEWS.admin.mas;
-    if (bm) VIEWS.admin.mas = function () { const h = bm.apply(this, arguments); if (typeof h !== 'string' || h.includes("go('instalarApp')")) return h; const it = menuItem('share', 'Invitar a instalar la app', "go('instalarApp')"); const i = h.indexOf('</h2>'); return i >= 0 ? h.slice(0, i + 5) + it + h.slice(i + 5) : it + h; };
+    if (bm) VIEWS.admin.mas = function () { const h = bm.apply(this, arguments); if (typeof h !== 'string' || h.includes("go('instalarApp')")) return h; const it = menuItem('share', 'Instalar la app en teléfonos', "go('instalarApp')"); const i = h.indexOf('</h2>'); return i >= 0 ? h.slice(0, i + 5) + it + h.slice(i + 5) : it + h; };
   }
   if (typeof BACK !== 'undefined') BACK.instalarApp = 'mas';
 
   const st = document.createElement('style'); st.id = 'gw-invitar-css';
-  st.textContent = `.ia-card{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+  st.textContent = `.ia-blq .ia-h{display:flex;gap:12px;align-items:center;margin-bottom:12px}.ia-ic{font-size:28px;width:44px;height:44px;border-radius:12px;background:var(--bg,#f4f7f6);display:grid;place-items:center;flex:none}
+.ia-qr{display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:12px;text-align:center}
 .ia-qr svg{width:220px;height:220px;max-width:64vw;border-radius:14px;background:#fff;padding:6px;border:1px solid var(--line)}
-.ia-link{font-size:14px;color:var(--muted);overflow-wrap:anywhere;user-select:all}
-.ia-btns{display:grid;grid-template-columns:1fr;gap:8px;width:100%}
+.ia-link{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.ia-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ia-wa{background:#15803d!important;border-color:#15803d!important;color:#fff!important}
 .ia-apk b{display:flex;align-items:center;gap:8px;justify-content:space-between}
-.ia-msg{padding:14px;border-radius:14px;background:var(--bg,#f4f7f6);border:1px solid var(--line);font-size:15px;line-height:1.5;overflow-wrap:anywhere}
-@media (min-width:700px){.ia-btns{grid-template-columns:repeat(3,1fr)}}`;
+.ia-subir{cursor:pointer}
+.ia-prog{height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:10px}.ia-prog div{height:100%;width:0;background:#15803d;transition:width .2s}
+.oculto{display:none!important}
+@media (min-width:700px){.ia-btns{grid-template-columns:repeat(4,1fr)}}`;
   document.head.appendChild(st);
 })();
 

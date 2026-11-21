@@ -49,7 +49,7 @@ footer a{color:var(--pri)}
 <body>
 <header><div class="w">
   <div class="logo"><img src="icon-192.png" alt="">GateWise</div>
-  <h1>Instala GateWise en tu teléfono</h1>
+  <h1 id="tit">Instala GateWise en tu teléfono</h1>
   <p>Elige tu tipo de teléfono y sigue los pasos. Toma menos de 2 minutos.</p>
 </div></header>
 
@@ -64,7 +64,7 @@ footer a{color:var(--pri)}
     <div class="card" id="apkCard">
       <h2>Opción 1: descargar la app</h2>
       <p class="sub">Para teléfonos Android (Samsung, Xiaomi, Motorola, Huawei y otros).</p>
-      <a class="btn" href="GateWise.apk" download>
+      <a class="btn" id="apkBtn" href="GateWise.apk" download>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Descargar GateWise para Android</a>
       <ol class="pasos">
         <li><b>Toca «Descargar»</b>Si el teléfono pregunta, toca <kbd>Descargar</kbd> o <kbd>Descargar de todos modos</kbd>.</li>
@@ -132,8 +132,16 @@ function ver(id){
 }
 (function(){
   var ua=navigator.userAgent||'';
-  if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))ver('iphone');
+  var q={};try{new URLSearchParams(location.search).forEach(function(v,k){q[k]=v})}catch(e){}
+  // nombre de la residencial (enlace compartido desde la administración)
+  if(q.n){var t=document.getElementById('tit');t.textContent='Instala la app de '+String(q.n).slice(0,80);document.title='Instalar GateWise · '+String(q.n).slice(0,80)}
+  var so=q.so;
+  if(so==='android'||so==='iphone'||so==='pc')ver(so);
+  else if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))ver('iphone');
   else if(!/Android/i.test(ua))ver('pc');
+  // APK subido por la administración (solo se aceptan archivos de la nube oficial de GateWise)
+  var apk=q.apk||'';
+  if(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/gatewise-prod\.(firebasestorage\.app|appspot\.com)\/o\/apk%2F/.test(apk)){document.getElementById('apkBtn').href=apk;return}
   // si todavía no se ha subido el APK, se muestra solo la opción de Chrome
   function sinApk(){document.getElementById('apkCard').classList.add('oculto');var h=document.getElementById('opc2');if(h)h.textContent='Instalar desde Chrome';}
   try{fetch('GateWise.apk',{method:'HEAD',cache:'no-store'}).then(function(r){if(!r.ok)sinApk()}).catch(function(){})}catch(e){}
