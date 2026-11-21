@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.20-50';
+const APP_VERSION='2026.11.20-51';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -7692,7 +7692,10 @@ window.GWQR = GWQR;
   const RAP_COB = ['Voy en camino', 'Llego en 15 minutos', 'Estoy afuera de su casa', '¿Puedo pasar hoy?'];
   const RAP_RES = ['Estoy en casa', 'Prefiero por la tarde', 'Tengo el dinero listo', '¿A qué hora llega?'];
   const esCob = () => S.user && S.user.rol === 'cobrador';
-  const leidoDe = (v) => (v.leido && v.leido[S.user.id]) || 0;
+  const LKEY = () => KEY + '_ccleido_' + (S.user && S.user.id);
+  const leidos = () => { try { return JSON.parse(localStorage.getItem(LKEY()) || '{}'); } catch (e) { return {}; } };
+  const marcarLeido = v => { try { const o = leidos(); o[v.id] = (v.chat || []).length; localStorage.setItem(LKEY(), JSON.stringify(o)); } catch (e) { } };
+  const leidoDe = (v) => leidos()[v.id] || 0;
   const nuevos = v => (v.chat || []).filter((m, i) => i >= leidoDe(v) && m.de !== S.user.id).length;
   window.chatCobNuevos = nuevos;
 
@@ -7723,12 +7726,12 @@ window.GWQR = GWQR;
 
   window.ccAbrir = function (id) {
     const v = DB.visitasCobro.find(x => x.id === id); if (!v) return;
-    v.chat = v.chat || []; v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length; save();
+    v.chat = v.chat || []; marcarLeido(v);
     const ultimaProp = v.chat.map((m, i) => m.prop && (m.prop.estado || 'pendiente') === 'pendiente' ? i : -1).reduce((a, b) => Math.max(a, b), -1);
     const otro = esCob() ? (usuario(casa(v.casaId).duenoId) || {}).nombre || casaNom(v.casaId) : (v.cobradorId ? (usuario(v.cobradorId) || {}).nombre : 'Cobrador (por asignar)');
     const rap = esCob() ? RAP_COB : RAP_RES;
     sheet('Coordinar cobro', `<div class="cc-head"><div><b>${esc(otro || '')}</b><small>${casaNom(v.casaId)} · ${money(montoVisita(v))}</small></div><span class="chip info">${cuando(v)}</span></div>
-      <div class="cc-list" id="ccList">${v.chat.length ? v.chat.map((m, i) => burbuja(v, m, i, ultimaProp)).join('') : `<p class="note" style="text-align:center">Escríbanse aquí para ponerse de acuerdo en el día y la hora.</p>`}</div>
+      <div class="cc-list" id="ccList" data-v="${v.id}" data-n="${v.chat.length}">${v.chat.length ? v.chat.map((m, i) => burbuja(v, m, i, ultimaProp)).join('') : `<p class="note" style="text-align:center">Escríbanse aquí para ponerse de acuerdo en el día y la hora.</p>`}</div>
       <div class="cc-rap">${rap.map(t => `<button type="button" onclick="ccEnviar('${v.id}',this.textContent)">${esc(t)}</button>`).join('')}</div>
       <form class="cc-form" onsubmit="event.preventDefault();ccEnviar('${v.id}',this.t.value)"><input name="t" placeholder="Escribe un mensaje" autocomplete="off" aria-label="Mensaje" maxlength="400"><button class="btn" aria-label="Enviar">${ic('send', 18)}</button></form>
       <button class="btn ghost block" onclick="ccProponer('${v.id}')">${ic('calendar', 18)} Proponer otro día y hora</button>`);
@@ -7738,7 +7741,7 @@ window.GWQR = GWQR;
     t = String(t || '').trim(); if (!t) return;
     const v = DB.visitasCobro.find(x => x.id === id); if (!v) return;
     tomar(v); v.chat = v.chat || []; v.chat.push({ de: S.user.id, texto: t, f: nowISO() });
-    v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length;
+    marcarLeido(v);
     avisar(v, t); save(); render(); ccAbrir(id);
   };
   window.ccProponer = function (id) {
@@ -7754,7 +7757,7 @@ window.GWQR = GWQR;
     v.chat.forEach(m => { if (m.prop && (m.prop.estado || 'pendiente') === 'pendiente') m.prop.estado = 'reemplazada'; });
     const prop = { fecha: f.get('fecha'), hora: f.get('hora') || '', franja: f.get('franja'), estado: 'pendiente' };
     v.chat.push({ de: S.user.id, texto: String(f.get('t') || '').trim(), prop, f: nowISO() });
-    v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length;
+    marcarLeido(v);
     avisar(v, `Propone cambiar el cobro a: ${fFecha(prop.fecha)} · ${prop.hora ? 'a las ' + prop.hora : FRANJAS[prop.franja]}. Abre los mensajes para aceptar.`);
     save(); render(); ccAbrir(id); toast('Propuesta enviada');
   };
@@ -7762,9 +7765,31 @@ window.GWQR = GWQR;
     const v = DB.visitasCobro.find(x => x.id === id); const m = v && v.chat && v.chat[i]; if (!m || !m.prop) return;
     tomar(v); m.prop.estado = 'aceptada'; v.fecha = m.prop.fecha; v.franja = m.prop.franja; v.hora = m.prop.hora || '';
     const txt = 'Acordado: ' + cuando(v); v.chat.push({ de: S.user.id, sys: true, texto: txt, f: nowISO() });
-    v.leido = v.leido || {}; v.leido[S.user.id] = v.chat.length;
+    marcarLeido(v);
     avisar(v, txt + '.'); save(); render(); ccAbrir(id); toast('Día y hora confirmados');
   };
+
+  function listaHTML(v) {
+    const ultimaProp = v.chat.map((m, i) => m.prop && (m.prop.estado || 'pendiente') === 'pendiente' ? i : -1).reduce((a, b) => Math.max(a, b), -1);
+    return v.chat.map((m, i) => burbuja(v, m, i, ultimaProp)).join('');
+  }
+  // si llega un mensaje mientras la conversación está abierta, se muestra al instante
+  function ccRefrescar() {
+    const l = document.getElementById('ccList'); if (!l) return;
+    const v = DB && DB.visitasCobro.find(x => x.id === l.dataset.v); if (!v) return;
+    const n = (v.chat || []).length; if (n === +l.dataset.n) return;
+    const nuevoDeOtro = (v.chat[n - 1] || {}).de !== S.user.id;
+    l.innerHTML = listaHTML(v); l.dataset.n = n; l.scrollTop = l.scrollHeight; marcarLeido(v);
+    const chipH = document.querySelector('#ov .cc-head .chip'); if (chipH) chipH.textContent = cuando(v);
+    if (nuevoDeOtro) { try { navigator.vibrate && navigator.vibrate(60); } catch (e) { } }
+  }
+  window.ccRefrescar = ccRefrescar;
+  if (typeof refrescarVista === 'function') {
+    const brv = refrescarVista;
+    refrescarVista = function () { const r = brv.apply(this, arguments); try { ccRefrescar(); } catch (e) { } return r; };
+    window.refrescarVista = refrescarVista;
+  }
+  setInterval(() => { try { ccRefrescar(); } catch (e) { } }, 1500);
 
   const boton = (v) => { const n = nuevos(v); const t = (v.chat || []).length; return `<button class="btn ${n ? '' : 'ghost'} smb cc-btn" onclick="ccAbrir('${v.id}')">${ic('chat', 16)} ${t ? 'Mensajes' : 'Coordinar día y hora'}${n ? ` <span class="cc-n">${n}</span>` : ''}</button>`; };
 
