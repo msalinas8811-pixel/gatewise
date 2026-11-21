@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-59';
+const APP_VERSION='2026.11.21-61';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8874,22 +8874,46 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
   }
 
   /* ---------- Push ---------- */
-  async function activarPush() {
+  const pushSoportado = () => ('Notification' in window) && ('serviceWorker' in navigator) && ('PushManager' in window);
+  async function activarPush(silencio) {
+    const avisar = m => { if (!silencio) toast(m); };
     try {
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) return toast(esIOS() && !esStandalone() ? 'En iPhone, primero agrega GateWise a tu pantalla de inicio' : 'Este teléfono no permite notificaciones desde la web');
-      if (!window.GATEWISE_VAPID || /PEGAR/.test(window.GATEWISE_VAPID)) return toast('Falta configurar la clave de notificaciones (VAPID) en config.js');
+      if (window.GWAndroid && !pushSoportado()) return avisar('En la app de Android las notificaciones todavía no están disponibles. Ábrela en Chrome para recibirlas.');
+      if (!pushSoportado()) return avisar(esIOS() && !esStandalone() ? 'En iPhone, primero agrega GateWise a tu pantalla de inicio (Safari › Compartir › Agregar a inicio) y ábrela desde el ícono' : 'Este teléfono no permite notificaciones desde la web');
+      if (!window.GATEWISE_VAPID || /PEGAR/.test(window.GATEWISE_VAPID)) return avisar('Falta configurar la clave de notificaciones');
+      if (!P.uid) return;
+      if (silencio && Notification.permission !== 'granted') return;
       if (!firebase.messaging) await cargarJS(SDK + 'firebase-messaging-compat.js');
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') return toast('Las notificaciones quedaron desactivadas');
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (perm !== 'granted') { render(); return avisar(perm === 'denied' ? 'Las notificaciones están bloqueadas. Actívalas en los ajustes del navegador (candado › Notificaciones › Permitir)' : 'Las notificaciones quedaron desactivadas'); }
       const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: './fcm/' }); // ámbito propio: no reemplaza al service worker de la app
       P.msg = P.msg || firebase.messaging();
       const token = await P.msg.getToken({ vapidKey: window.GATEWISE_VAPID, serviceWorkerRegistration: reg });
-      if (!token) return toast('No se pudo activar');
+      if (!token) return avisar('No se pudo activar');
       await FS().doc('tokens/' + P.uid).set({ tokens: firebase.firestore.FieldValue.arrayUnion(token), rid: P.rid || 'plataforma', _t: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-      P.msg.onMessage(m => { const n = m.notification || {}; toast((n.title ? n.title + ' · ' : '') + (n.body || '')); });
-      render(); toast('Notificaciones activadas');
-    } catch (e) { console.warn(e); toast('No se pudo activar: ' + (e.message || e)); }
+      if (!P.msgOn) { P.msgOn = true; P.msg.onMessage(m => { const n = m.notification || {}; toast((n.title ? n.title + ' · ' : '') + (n.body || '')); }); }
+      if (!silencio) { render(); toast('Notificaciones activadas'); }
+    } catch (e) { console.warn('push', e); avisar('No se pudo activar: ' + (e.message || e)); }
   }
+  // Al entrar: si este teléfono ya dio permiso, se renueva el token en silencio
+  let pushRev = '';
+  setInterval(() => { if (P.uid && S.user && pushRev !== P.uid) { pushRev = P.uid; activarPush(true); } }, 3000);
+  // Aviso en la pantalla de todos los usuarios (residentes, vigilancia, cobradores, tiendas, técnicos, administración)
+  function avisoPush() {
+    try {
+      if (!S.user || !P.uid || !pushSoportado() || Notification.permission !== 'default') return;
+      let t = 0; try { t = +localStorage.getItem('gw_push_no_' + P.uid) || 0; } catch (e) { }
+      if (Date.now() - t < 7 * 864e5) return;
+      const m = document.querySelector('main.wrap'); if (!m || m.querySelector('.gw-push-av')) return;
+      m.insertAdjacentHTML('afterbegin', `<div class="card gw-push-av"><div class="gw-push-ic">🔔</div><div class="gw-push-tx"><b>Activa las notificaciones</b><span>Para enterarte al momento de visitas, pagos, avisos y mensajes.</span></div><div class="gw-push-bt"><button class="btn" onclick="GW_PROD.activarPush()">Activar</button><button class="btn ghost" onclick="GW_PROD.pushLuego()">Ahora no</button></div></div>`);
+    } catch (e) { }
+  }
+  function pushLuego() { try { localStorage.setItem('gw_push_no_' + P.uid, String(Date.now())); } catch (e) { } const el = document.querySelector('.gw-push-av'); if (el) el.remove(); }
+  { const r0 = render; render = function () { const x = r0.apply(this, arguments); setTimeout(avisoPush, 0); return x; }; window.render = render; }
+  { const st = document.createElement('style'); st.textContent = `.gw-push-av{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border:1px solid color-mix(in srgb,var(--pri) 30%,var(--line));background:color-mix(in srgb,var(--pri) 7%,var(--card))}
+.gw-push-ic{font-size:28px;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--card);flex:none}
+.gw-push-tx{flex:1 1 200px;display:flex;flex-direction:column;gap:2px}.gw-push-tx span{font-size:15px;color:var(--muted)}
+.gw-push-bt{display:flex;gap:8px;flex:1 1 100%}.gw-push-bt .btn{flex:1;min-height:46px}`; document.head.appendChild(st); }
   const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const esStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   let instalarEv = null;
@@ -9066,17 +9090,19 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
   };
 
   /* ---------- Menú: notificaciones, instalar, eliminar cuenta ---------- */
-  function itemsProd() {
-    const perm = ('Notification' in window) ? Notification.permission : 'na';
+  function itemsProd(sinEliminar) {
+    const perm = pushSoportado() ? Notification.permission : 'na';
     let h = '';
-    if (perm !== 'granted') h += menuItem('bell', 'Activar notificaciones', 'GW_PROD.activarPush()');
-    if (!esStandalone()) h += menuItem('download', 'Instalar la app en este teléfono', 'GW_PROD.instalar()');
-    if (!P.owner) h += menuItem('trash', 'Eliminar mi cuenta', 'GW_PROD.pedirEliminarCuenta()');
+    if (perm === 'granted') h += menuItem('bell', 'Notificaciones activadas ✓', 'GW_PROD.activarPush()');
+    else if (perm === 'denied') h += menuItem('bell', 'Notificaciones bloqueadas · cómo activarlas', 'GW_PROD.activarPush()');
+    else h += menuItem('bell', 'Activar notificaciones', 'GW_PROD.activarPush()');
+    if (!esStandalone() && !window.GWAndroid) h += menuItem('download', 'Instalar la app en este teléfono', 'GW_PROD.instalar()');
+    if (!P.owner && !sinEliminar) h += menuItem('trash', 'Eliminar mi cuenta', 'GW_PROD.pedirEliminarCuenta()');
     return h;
   }
   Object.keys(VIEWS).forEach(r => {
-    const V = VIEWS[r]; if (!V || !V.mas || r === 'superadmin') return; const b = V.mas;
-    V.mas = function () { const h = b.apply(this, arguments); const i = h.indexOf('<h3>Sesión</h3>'); const it = itemsProd(); return i >= 0 ? h.slice(0, i) + '<h3>Este teléfono</h3>' + it + h.slice(i) : h + it; };
+    const V = VIEWS[r]; if (!V || !V.mas) return; const b = V.mas;
+    V.mas = function () { const h = b.apply(this, arguments); if (typeof h !== 'string') return h; const it = '<h3>Este teléfono</h3>' + itemsProd(r === 'superadmin'); const i = h.indexOf('<h3>Sesión</h3>'); return i >= 0 ? h.slice(0, i) + it + h.slice(i) : h + it; };
   });
   vLogin = function () {
     let h = base.vLogin.apply(this, arguments);
@@ -9085,7 +9111,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
     if (!esStandalone()) h += `<div class="card" style="margin-top:12px;text-align:left"><b>${esIOS() ? 'Instala GateWise en tu iPhone' : 'Instala GateWise en tu teléfono'}</b><p class="sm muted" style="margin:6px 0 10px">${esIOS() ? 'En Safari toca Compartir › Agregar a pantalla de inicio. Así se abre como app y puedes recibir notificaciones.' : 'Ábrela como una app desde tu pantalla de inicio.'}</p><button class="btn sec block" onclick="GW_PROD.instalar()">Cómo instalar</button></div>`;
     return h;
   };
-  Object.assign(P, { activarPush, instalar, pedirEliminarCuenta, sincronizar, reconstruir, cargarLigero, subirDB, abrirRes, cerrarRes, emailDe, claveAuth, estable, leerDoc, plan });
+  Object.assign(P, { activarPush, pushLuego, instalar, pedirEliminarCuenta, sincronizar, reconstruir, cargarLigero, subirDB, abrirRes, cerrarRes, emailDe, claveAuth, estable, leerDoc, plan });
   if (typeof ICON !== 'undefined' && !ICON.download) ICON.download = '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>';
   Object.assign(I18N, { 'Activar notificaciones': 'Turn on notifications', 'Instalar la app en este teléfono': 'Install the app on this phone', 'Eliminar mi cuenta': 'Delete my account', 'Este teléfono': 'This phone', 'Cargando su residencial…': 'Loading your community…', 'Un momento, por favor.': 'One moment, please.', 'Instala GateWise en tu iPhone': 'Install GateWise on your iPhone', 'Instala GateWise en tu teléfono': 'Install GateWise on your phone', 'Cómo instalar': 'How to install', '🔒 Conexión segura · datos protegidos': '🔒 Secure connection · data protected' });
 

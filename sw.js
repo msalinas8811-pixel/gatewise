@@ -1,4 +1,4 @@
-const CACHE = 'gatewise-v59';
+const CACHE = 'gatewise-v61';
 const ASSETS = [
   './',
   './index.html',
@@ -28,7 +28,8 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   const propio = url.origin === self.location.origin;
-  const req = propio ? new Request(e.request, { cache: 'no-store' }) : e.request;
+  if (!propio) return; // lo de otros servidores (Google, Firebase) va directo, sin pasar por aquí
+  const req = e.request.mode === 'navigate' ? new Request(e.request.url, { cache: 'no-store', credentials: 'same-origin' }) : new Request(e.request, { cache: 'no-store' });
   e.respondWith(
     fetch(req)
       .then(r => { if (propio && r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; })
