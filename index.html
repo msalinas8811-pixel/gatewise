@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-56';
+const APP_VERSION='2026.11.21-57';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -8166,7 +8166,8 @@ window.GWQR = GWQR;
   const PROD = () => window.GATEWISE_MODO === 'produccion';
   const base = () => location.origin + location.pathname.replace(/[^/]*$/, '');
   const nombreRes = () => (DB && DB.residencial && DB.residencial.nombre) || 'la residencial';
-  const apkInfo = () => (DB && DB.apkApp && DB.apkApp.url) ? DB.apkApp : null;
+  // La app de Android la publica el Administrador de la APP (una sola para todas las residenciales)
+  const apkInfo = () => (PLAT && PLAT.apkApp && PLAT.apkApp.url) ? PLAT.apkApp : null;
   const qs = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
   const enlace = so => base() + 'instalar.html' + (so ? '?' + qs({ so, n: nombreRes(), apk: so === 'android' && apkInfo() ? apkInfo().url : '' }) : '?' + qs({ n: nombreRes(), apk: apkInfo() ? apkInfo().url : '' }));
   window.gwEnlaceInstalar = () => enlace('');
@@ -8175,7 +8176,6 @@ window.GWQR = GWQR;
     : so === 'iphone'
       ? `📲 *App de ${nombreRes()} para iPhone*\n\n1. Abre este enlace en *Safari*:\n${enlace('iphone')}\n2. Toca *Compartir* (cuadro con flecha ↑) y luego *Agregar a la pantalla de inicio*.\n3. Abre GateWise desde el ícono y entra con tu usuario y contraseña.\n\nEn el enlace están los pasos con detalle.`
       : `📲 Instala la app de ${nombreRes()}\n\nCon GateWise das acceso a tus visitas, pagas tu cuota, envías reportes y recibes los avisos oficiales.\n\nEntra aquí y sigue los pasos (iPhone, Android o computadora):\n${enlace('')}\n\nTu usuario y contraseña te los da la administración.`;
-  const puedeSubir = () => S.user && (S.user.rol === 'admin' || S.imp);
   const mb = n => (n / 1048576).toFixed(1) + ' MB';
   let MOSTRAR_QR = null;
 
@@ -8195,18 +8195,14 @@ window.GWQR = GWQR;
   window.vInvitarApp = function () {
     const a = apkInfo();
     setTimeout(revisarApk, 50);
-    const subir = puedeSubir() ? `<label class="btn block big-ok ia-subir">${ic('download', 18)} ${a ? 'Cambiar el archivo APK' : 'Subir el archivo APK'}<input type="file" accept=".apk,application/vnd.android.package-archive" hidden onchange="iaSubirApk(this)"></label>
-        <div id="iaProg" class="ia-prog oculto"><div></div></div>` : '';
     return `<h2>Instalar la app en teléfonos</h2>
-      <p class="note" style="margin-top:-4px">Sube la app de Android y comparte el enlace con los vecinos. Cada enlace lleva la guía paso a paso.</p>
+      <p class="note" style="margin-top:-4px">Comparte el enlace con los vecinos. Cada enlace lleva la guía paso a paso para instalarla.</p>
       <h3>1. App para Android</h3>
       <div class="card ia-apk" id="iaApk">
-        ${a ? `<b>GateWise.apk ${chip('Subida', 'ok')}</b><p class="note" style="margin:4px 0 10px">${a.tam ? mb(a.tam) + ' · ' : ''}subida el ${fFecha(a.fecha)}${a.version ? ' · versión ' + esc(a.version) : ''}</p>` : `<b>App para Android</b><p class="note" style="margin:4px 0 10px">Revisando…</p>`}
-        ${subir}
-        <p class="note" style="margin:8px 0 0">El archivo se genera en Android Studio (Build › Build APK). Máximo 150 MB.</p>
+        ${a ? `<b>GateWise para Android ${chip('Lista', 'ok')}</b><p class="note" style="margin:4px 0 0">Publicada por GateWise el ${fFecha(a.fecha)}${a.tam ? ' · ' + mb(a.tam) : ''}${a.version ? ' · versión ' + esc(a.version) : ''}. El enlace de Android ya la incluye; solo compártelo.</p>` : `<b>App para Android</b><p class="note" style="margin:4px 0 0">Revisando…</p>`}
       </div>
       <h3>2. Compartir con los vecinos</h3>
-      ${bloque('android', 'Enlace para Android', '🤖', a ? 'Descarga la app y muestra cómo instalarla.' : 'Mientras no subas el APK, enseña a instalarla desde Chrome.')}
+      ${bloque('android', 'Enlace para Android', '🤖', a ? 'Descarga la app y muestra cómo instalarla.' : 'Enseña a instalarla desde Chrome.')}
       ${bloque('iphone', 'Enlace para iPhone', '📱', 'Guía para agregarla desde Safari a la pantalla de inicio.')}
       ${bloque('', 'Un solo enlace para todos', '🔗', 'Detecta el tipo de teléfono y muestra los pasos correctos.')}
       <button class="btn ghost block" onclick="iaCartel()">${ic('download', 18)} Cartel con QR para imprimir</button>
@@ -8220,31 +8216,48 @@ window.GWQR = GWQR;
     const b = el.querySelector('b'), p = el.querySelector('p');
     try {
       const r = await fetch('GateWise.apk', { method: 'HEAD', cache: 'no-store' });
-      if (r.ok) { const n = +r.headers.get('content-length') || 0; b.innerHTML = `GateWise.apk ${chip('Disponible', 'ok')}`; p.textContent = `Versión general de GateWise${n ? ' · ' + mb(n) : ''}. Puedes subir la tuya si la actualizaste.`; }
-      else { b.innerHTML = `App para Android ${chip('Sin subir', 'warn')}`; p.textContent = 'Todavía no hay archivo de Android. Súbelo con el botón de abajo.'; }
+      if (r.ok) { const n = +r.headers.get('content-length') || 0; b.innerHTML = `GateWise.apk ${chip('Disponible', 'ok')}`; p.textContent = `Lista para descargar${n ? ' · ' + mb(n) : ''}. El enlace de Android ya la incluye; solo compártelo.`; }
+      else { b.innerHTML = `App para Android ${chip('Sin subir', 'warn')}`; p.textContent = 'GateWise todavía no publica la app de Android. Mientras tanto el enlace enseña a instalarla desde Chrome.'; }
     } catch (e) { p.textContent = 'No se pudo revisar (sin internet).'; }
   }
 
+  /* ---------- Administrador de la APP: publicar el APK para todas las residenciales ---------- */
+  window.vSAApk = function () {
+    const a = apkInfo();
+    return `<h2>App para Android (APK)</h2>
+      <p class="note" style="margin-top:-4px">Sube aquí el archivo GateWise.apk. Todas las residenciales lo reciben automáticamente en su enlace de instalación para compartirlo con sus vecinos.</p>
+      <div class="card ia-apk">
+        ${a ? `<b>GateWise.apk ${chip('Publicada', 'ok')}</b><p class="note" style="margin:4px 0 10px">${a.tam ? mb(a.tam) + ' · ' : ''}subida el ${fFecha(a.fecha)}${a.version ? ' · versión ' + esc(a.version) : ''}</p>` : `<b>App para Android ${chip('Sin publicar', 'warn')}</b><p class="note" style="margin:4px 0 10px">Mientras no la subas, los enlaces usan el archivo GateWise.apk de la página (si existe) o enseñan a instalarla desde Chrome.</p>`}
+        <label class="f">Versión (opcional)<input id="iaVer" placeholder="Ej. 1.2" maxlength="20" value="${esc((a && a.version) || '')}"></label>
+        <label class="btn block big-ok ia-subir">${ic('download', 18)} ${a ? 'Subir versión nueva' : 'Subir el archivo APK'}<input type="file" accept=".apk,application/vnd.android.package-archive" hidden onchange="iaSubirApk(this)"></label>
+        <div id="iaProg" class="ia-prog oculto"><div></div></div>
+        <p class="note" style="margin:8px 0 0">Se genera en Android Studio (Build › Build APK). Máximo 150 MB.</p>
+      </div>
+      ${a ? `<h3>Enlace de Android</h3><div class="card"><div class="ia-link" style="user-select:all">${esc(base() + 'instalar.html?so=android&apk=' + encodeURIComponent(a.url))}</div><div class="ia-btns" style="margin-top:10px"><button class="btn ghost" onclick="iaCopiarTxt(this.closest('.card').querySelector('.ia-link').textContent)">Copiar enlace</button><a class="btn ghost" target="_blank" rel="noopener" href="${esc(base() + 'instalar.html?so=android&apk=' + encodeURIComponent(a.url))}">Ver la guía</a></div></div>` : ''}`;
+  };
+  window.iaCopiarTxt = async function (t) { try { await navigator.clipboard.writeText(t); toast('Enlace copiado'); } catch (e) { toast('Mantén presionado el enlace para copiarlo'); } };
   window.iaSubirApk = async function (inp) {
     const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+    if (!S.user || S.user.rol !== 'superadmin') return toast('Solo el Administrador de la APP publica la app');
     if (!/\.apk$/i.test(f.name)) return toast('Elige el archivo que termina en .apk');
     if (f.size > 150 * 1048576) return toast('El archivo pesa ' + mb(f.size) + '. El máximo es 150 MB');
     if (f.size < 100 * 1024) return toast('Ese archivo es muy pequeño; no parece una app de Android');
-    if (!PROD()) return toast('En el demo no se suben archivos. En la versión real queda guardado en la nube');
+    if (!PROD()) return toast('En el demo no se suben archivos. Hazlo desde la app oficial');
     const box = document.getElementById('iaProg'); const bar = box && box.firstElementChild;
+    const ver = ((document.getElementById('iaVer') || {}).value || '').trim();
     try {
       if (!firebase.storage) await cargarJS('https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js');
-      const ref = firebase.storage().ref('apk/' + RES + '/GateWise.apk');
+      const ref = firebase.storage().ref('apk/GateWise.apk');
       if (box) box.classList.remove('oculto');
       const t = ref.put(f, { contentType: 'application/vnd.android.package-archive', contentDisposition: 'attachment; filename="GateWise.apk"', cacheControl: 'no-cache' });
       t.on('state_changed', s => { if (bar) bar.style.width = Math.round(100 * s.bytesTransferred / s.totalBytes) + '%'; });
       await t;
       const url = await ref.getDownloadURL();
-      DB.apkApp = { url, nombre: f.name, tam: f.size, fecha: nowISO(), por: S.user.id };
-      save(); render(); toast('App de Android subida. Ya puedes compartir el enlace');
+      PLAT.apkApp = { url, tam: f.size, fecha: nowISO(), version: ver };
+      savePlat(); render(); toast('App publicada. Todas las residenciales ya tienen el enlace');
     } catch (e) {
       console.warn('apk', e); if (box) box.classList.add('oculto');
-      toast(/unauthorized|permission/i.test(String(e.code || e.message)) ? 'Solo la administración puede subir la app' : 'No se pudo subir: ' + (e.message || e));
+      toast(/unauthorized|permission/i.test(String(e.code || e.message)) ? 'Solo el Administrador de la APP puede subir la app' : 'No se pudo subir: ' + (e.message || e));
     }
   };
 
@@ -8286,7 +8299,12 @@ window.GWQR = GWQR;
     const bm = VIEWS.admin.mas;
     if (bm) VIEWS.admin.mas = function () { const h = bm.apply(this, arguments); if (typeof h !== 'string' || h.includes("go('instalarApp')")) return h; const it = menuItem('share', 'Instalar la app en teléfonos', "go('instalarApp')"); const i = h.indexOf('</h2>'); return i >= 0 ? h.slice(0, i + 5) + it + h.slice(i + 5) : it + h; };
   }
-  if (typeof BACK !== 'undefined') BACK.instalarApp = 'mas';
+  if (VIEWS.superadmin) {
+    VIEWS.superadmin.apkApp = vSAApk;
+    const bs = VIEWS.superadmin.mas;
+    if (bs) VIEWS.superadmin.mas = function () { const h = bs.apply(this, arguments); if (typeof h !== 'string' || h.includes("go('apkApp')")) return h; const it = menuItem('download', 'App para Android (APK)', "go('apkApp')"); const i = h.indexOf('<h3>'); return i >= 0 ? h.slice(0, i) + it + h.slice(i) : h + it; };
+  }
+  if (typeof BACK !== 'undefined') { BACK.instalarApp = 'mas'; BACK.apkApp = 'mas'; }
 
   const st = document.createElement('style'); st.id = 'gw-invitar-css';
   st.textContent = `.ia-blq .ia-h{display:flex;gap:12px;align-items:center;margin-bottom:12px}.ia-ic{font-size:28px;width:44px;height:44px;border-radius:12px;background:var(--bg,#f4f7f6);display:grid;place-items:center;flex:none}
@@ -8729,13 +8747,13 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
   function platVacia() { return { version: 1, ultima: '', superadmins: [], residenciales: [], solicitudes: [], demo: false }; }
   function duenoObj() { return { id: 'owner', rol: 'superadmin', nombre: 'Administrador de la APP', user: OWNER_EMAIL, email: OWNER_EMAIL, activo: true }; }
   function publicoDe(r) { return { id: r.id, nombre: r.nombre, municipio: r.municipio || '', estado: r.estado || 'activa', vencePrueba: r.vencePrueba || null, casasAut: (typeof casasAutDe === 'function' ? casasAutDe(r, null) : null) || null, tipo: (r.init && r.init.tipo) || r.tipo || 'residencial', pais: (r.init && r.init.pais) || r.pais || 'SV' }; }
-  function guardarCachePlat() { try { localStorage.setItem(PKEY_PROD, JSON.stringify({ residenciales: (PLAT.residenciales || []).map(publicoDe) })); } catch (e) { } }
+  function guardarCachePlat() { try { localStorage.setItem(PKEY_PROD, JSON.stringify({ residenciales: (PLAT.residenciales || []).map(publicoDe), apkApp: PLAT.apkApp || null })); } catch (e) { } }
   async function syncPlat() {
     if (!P.on || !P.owner || !P.platListo) return;
     const priv = clon(PLAT); delete priv.superadmins; delete priv.solicitudes; delete priv.ultima; (priv.residenciales || []).forEach(r => { if (r.init) delete r.init.adminPass; });
     const tareas = [];
     const jp = estable(priv); if (P.platSent.privado !== jp) { P.platSent.privado = jp; tareas.push(FS().doc('plataforma/privado').set({ d: jp, _t: firebase.firestore.FieldValue.serverTimestamp() })); }
-    const pub = { residenciales: (PLAT.residenciales || []).map(publicoDe) }; const jpu = estable(pub);
+    const pub = { residenciales: (PLAT.residenciales || []).map(publicoDe), apkApp: PLAT.apkApp || null }; const jpu = estable(pub);
     if (P.platSent.publico !== jpu) { P.platSent.publico = jpu; tareas.push(FS().doc('plataforma/publico').set({ d: jpu, _t: firebase.firestore.FieldValue.serverTimestamp() })); }
     (PLAT.residenciales || []).forEach(r => {
       const o = { nombre: r.nombre, estado: r.estado || 'activa', casasAut: (typeof casasAutDe === 'function' ? casasAutDe(r, null) : null) || null, vencePrueba: r.vencePrueba || null };
@@ -8834,7 +8852,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
   const base = { entrar, salir, render, impersonar: window.impersonar, editarRes: window.editarRes, resStats: window.resStats, vLogin: window.vLogin, ensureCuotas };
   loadPlat = function () {
     PLAT = platVacia();
-    try { const c = JSON.parse(localStorage.getItem(PKEY_PROD) || 'null'); if (c && Array.isArray(c.residenciales)) PLAT.residenciales = c.residenciales; } catch (e) { }
+    try { const c = JSON.parse(localStorage.getItem(PKEY_PROD) || 'null'); if (c && Array.isArray(c.residenciales)) PLAT.residenciales = c.residenciales; if (c && c.apkApp) PLAT.apkApp = c.apkApp; } catch (e) { }
   };
   savePlat = function () { if (!PLAT) return; guardarCachePlat(); if (P.owner) { clearTimeout(platT); platT = setTimeout(syncPlat, 300); } };
   load = function (id) {
@@ -9045,7 +9063,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
       if (typeof NUBE !== 'undefined') { NUBE.on = true; NUBE.estado = 'conectado'; }
       P.fs.doc('plataforma/publico').onSnapshot(s => {
         if (P.owner) return;
-        try { const o = s.exists ? JSON.parse(s.data().d || '{}') : { residenciales: [] }; PLAT.residenciales = o.residenciales || []; guardarCachePlat(); } catch (e) { }
+        try { const o = s.exists ? JSON.parse(s.data().d || '{}') : { residenciales: [] }; PLAT.residenciales = o.residenciales || []; PLAT.apkApp = o.apkApp || null; guardarCachePlat(); } catch (e) { }
         if (!S.user) { if (!RES && PLAT.residenciales.length) load(PLAT.residenciales[0].id); render(); }
       }, e => console.warn('publico', e.code));
       P.auth.onAuthStateChanged(async user => {
