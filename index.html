@@ -2149,7 +2149,7 @@ const EST_PED={nuevo:{l:'Nuevo',c:'warn'},aceptado:{l:'Aceptado',c:'info'},listo
 const PAGO_T={efectivo:'Efectivo al recibir',transferencia:'Transferencia',tarjeta:'Tarjeta (POS del vendedor)'};
 const ACTIVOS_PED=['nuevo','aceptado','listo','en_camino'];
 function tiendaDB(){if(!DB.tienda)DB.tienda={productos:[],pedidos:[],seq:0};return DB.tienda}
-const vendedores=()=>DB.usuarios.filter(u=>u.rol==='vendedor'&&u.activo);
+const vendedores=()=>DB.usuarios.filter(u=>(u.rol==='vendedor'||(u.vende&&(u.rol==='residente'||u.rol==='inquilino')))&&u.activo!==false);
 const prodsDe=vid=>tiendaDB().productos.filter(p=>p.vendedorId===vid);
 const prod=id=>tiendaDB().productos.find(p=>p.id===id);
 const pedido=id=>tiendaDB().pedidos.find(p=>p.id===id);
@@ -2227,7 +2227,7 @@ function confirmarEntrega(id){const p=pedido(id);const soyV=S.user.id===p.vended
   else notificar([otro],'📦 Confirma la entrega '+numPed(p),soyV?'El vendedor marcó el pedido como entregado. Confírmalo si ya lo recibiste.':'El comprador confirmó que recibió el pedido.',{tipo:'pedido',id});
   save();render();verPedido(id);toast(p.estado==='entregado'?'Pedido entregado ✓':'Confirmación registrada')}
 /* ---------- Chat ---------- */
-function chatMsgs(p){return (p.chat||[]).map(m=>{const yo=m.autor===S.user.id;const u=usuario(m.autor);return `<div style="display:flex;justify-content:${yo?'flex-end':'flex-start'};margin:6px 0"><div style="max-width:80%;padding:8px 12px;border-radius:14px;${yo?'background:var(--pri);color:var(--onpri);border-bottom-right-radius:4px':'background:var(--line);border-bottom-left-radius:4px'}"><div class="sm" style="opacity:.8;font-weight:700">${esc(yo?'Tú':(u&&u.rol==='vendedor'?u.negocio:u?u.nombre:''))}</div><div style="white-space:pre-wrap;word-break:break-word">${esc(m.texto)}</div><div class="sm" style="opacity:.7;text-align:right;font-size:11px">${hora(m.fecha)}</div></div></div>`}).join('')||'<div class="empty">Escribe para coordinar la entrega.</div>'}
+function chatMsgs(p){return (p.chat||[]).map(m=>{const yo=m.autor===S.user.id;const u=usuario(m.autor);return `<div style="display:flex;justify-content:${yo?'flex-end':'flex-start'};margin:6px 0"><div style="max-width:80%;padding:8px 12px;border-radius:14px;${yo?'background:var(--pri);color:var(--onpri);border-bottom-right-radius:4px':'background:var(--line);border-bottom-left-radius:4px'}"><div class="sm" style="opacity:.8;font-weight:700">${esc(yo?'Tú':(u&&(u.rol==='vendedor'||u.vende)?u.negocio:u?u.nombre:''))}</div><div style="white-space:pre-wrap;word-break:break-word">${esc(m.texto)}</div><div class="sm" style="opacity:.7;text-align:right;font-size:11px">${hora(m.fecha)}</div></div></div>`}).join('')||'<div class="empty">Escribe para coordinar la entrega.</div>'}
 function abrirChat(id){const p=pedido(id);p.visto=p.visto||{};p.visto[S.user.id]=p.chat.length;save();const v=usuario(p.vendedorId),c=usuario(p.compradorId);const soyV=S.user.id===p.vendedorId;
   sheet('💬 '+numPed(p)+' · '+esc(soyV?(c?c.nombre:''):(v?v.negocio:'')),`<div id="chatBox" style="max-height:52vh;overflow:auto;padding:4px 2px">${chatMsgs(p)}</div>
   <div class="months" style="margin:8px 0">${(soyV?['Voy en camino 🛵','Ya estoy afuera','¿Me confirma la dirección?','Su pedido está listo']:['¿A qué hora llega?','Ya voy a recogerlo','Estoy en casa','Gracias 🙌']).map(t=>`<button class="chip" style="border:0" onclick="enviarMsg('${id}',${JSON.stringify(t).replace(/"/g,'&quot;')})">${esc(t)}</button>`).join('')}</div>
@@ -3019,7 +3019,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-63';
+const APP_VERSION='2026.11.21-65';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -5145,12 +5145,12 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
   ROL.profesional = 'Profesional de servicios';
   const servDB = () => { if (!DB.servicios) DB.servicios = []; return DB.servicios; };
   const solDB = () => { if (!DB.servSol) DB.servSol = []; return DB.servSol; };
-  const pros = () => DB.usuarios.filter(u => u.rol === 'profesional' && u.activo);
-  const pro = id => DB.usuarios.find(u => u.id === id && u.rol === 'profesional');
+  const pros = () => DB.usuarios.filter(u => (u.rol === 'profesional' || (u.ofrece && (u.rol === 'residente' || u.rol === 'inquilino'))) && u.activo !== false);
+  const pro = id => DB.usuarios.find(u => u.id === id && (u.rol === 'profesional' || u.ofrece));
   const sol = id => solDB().find(s => s.id === id);
   const serviciosDe = (pid, todos) => servDB().filter(s => s.proId === pid && (todos || s.activo !== false));
   const esVec = () => S.user && ['residente', 'inquilino'].includes(S.user.rol);
-  const esPro = () => S.user && S.user.rol === 'profesional';
+  const esPro = () => S.user && (S.user.rol === 'profesional' || (!!S.modoPro && !!(usuario(S.user.id) || S.user).ofrece));
   window.servDB = servDB; window.solDB = solDB;
 
   const EST = {
@@ -8619,6 +8619,234 @@ body.gwa-ping .top .badge,body.gwa-ping .top .nb{animation:gwaPing 1.3s ease-out
   }, 800);
 })();
 
+/* =========================================================
+   ESCRITORIO MÁS PROFESIONAL (computadora, 1024 px o más)
+   En el teléfono todo sigue igual. En la computadora:
+   - Los botones ya no ocupan todo el ancho: tienen su tamaño
+     natural y, si van seguidos, se acomodan en una fila.
+   - Los botones dentro de tarjetas (Eliminar, Ver, Coordinar…) son
+     más pequeños y discretos.
+   - Campos de texto, buscadores y pestañas con ancho máximo cómodo.
+   - Formularios en dos columnas cuando tienen varios campos.
+   - Títulos y portadas más compactos; letra de 15–16 px.
+   - Ventanas (hojas) más angostas y con los botones en una fila.
+   ========================================================= */
+(function () {
+  const st = document.createElement('style'); st.id = 'gw-escritorio-css';
+  st.textContent = `
+@media (min-width:1024px){
+  /* Contenedor y textos */
+  .wrap{max-width:1120px!important;padding:28px 40px 72px!important;font-size:15.5px}
+  .wrap>h2{font-size:24px!important;margin:4px 0 16px}
+  .wrap h3{font-size:16px!important}
+  .r7-hero,.hero5,.rs-hero{padding:22px 26px!important;border-radius:22px!important}
+  .r7-hero h2,.hero5 h2,.rs-hero h2{font-size:26px!important}
+
+  /* Botones: tamaño natural, en fila */
+  .wrap .btn,.wrap .btn.block,.wrap .big-ok{display:inline-flex!important;width:auto!important;min-width:140px;min-height:44px!important;padding:0 22px!important;font-size:15px!important;justify-content:center;align-items:center;gap:8px;vertical-align:middle}
+  .wrap .btn+.btn{margin-left:10px}
+  .wrap .btn.block+.btn.block{margin-top:0!important}
+  .wrap .card .btn,.wrap .item .btn,.wrap .card .btn.block{min-width:0;min-height:38px!important;padding:0 16px!important;font-size:14px!important}
+  .wrap .card .btn.ghost{box-shadow:inset 0 0 0 1px var(--line)!important}
+  .wrap .btns,.wrap .cc-btns{display:flex!important;flex-wrap:wrap!important;gap:10px!important;justify-content:flex-start!important;grid-template-columns:none!important}
+  .wrap .btns>.btn,.wrap .cc-btns>.btn,.wrap .btns>a.btn{flex:0 0 auto!important;width:auto!important;margin:0!important}
+  .wrap .card .btns{justify-content:flex-end!important}
+
+  /* Campos, buscadores y pestañas con ancho cómodo */
+  .wrap input:not([type=checkbox]):not([type=radio]):not([type=range]),.wrap select,.wrap textarea{max-width:560px}
+  .wrap input[placeholder^="Buscar"]{max-width:440px}
+  .wrap .seg,.wrap .tipos{max-width:620px}
+  .wrap .seg button{min-height:40px}
+  .wrap textarea{min-height:110px}
+
+  /* Formularios en dos columnas cuando hay varios campos */
+  .wrap form:has(> label.f + label.f + label.f){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;align-items:start;max-width:880px}
+  .wrap form:has(> label.f + label.f + label.f)>*:not(label.f),.wrap form:has(> label.f + label.f + label.f)>label.f:has(textarea){grid-column:1/-1}
+  .wrap form:has(> label.f + label.f + label.f)>.btn{justify-self:start}
+  .wrap form:has(> label.f + label.f + label.f) input,.wrap form:has(> label.f + label.f + label.f) select{max-width:none}
+
+  /* Instalar la app: botones en fila */
+  .ia-btns{display:flex!important;flex-wrap:wrap;gap:10px}.ia-btns .btn{margin:0!important}
+
+  /* Tarjetas de lista más compactas y en cuadrícula cuando son avisos */
+  .card{padding:16px 18px}
+  .ez-big{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important}
+  .ez-big>*{min-height:150px}
+
+  /* Ventanas (hojas): más angostas, botones en fila a la derecha */
+  .sheet{max-width:560px!important}
+  .sheet .btn.block{width:auto!important;display:inline-flex!important;min-height:44px!important;padding:0 20px!important;font-size:15px!important;margin:12px 8px 0 0!important}
+  .sheet .btn.block.big-ok,.sheet .btn.block:not(.ghost){float:none}
+  .sheet input,.sheet select,.sheet textarea{font-size:15px}
+
+  /* Portería en computadora: teclado centrado y de tamaño fijo */
+  .vz-pad{max-width:460px;margin-left:auto;margin-right:auto}
+  .vz-sin,.vz-cnt{max-width:460px;margin-left:auto;margin-right:auto}
+}`;
+  document.head.appendChild(st);
+})();
+
+/* =========================================================
+   NEGOCIO DEL RESIDENTE: TIENDA O SERVICIO DESDE SU PANEL
+   - El residente (o inquilino) pide abrir una tienda o dar un servicio
+     desde su propio panel (Más › Mi negocio, o desde Tienda/Servicios).
+   - La administración lo aprueba en «Tiendas y técnicos» SIN crear
+     otro usuario: el negocio queda ligado a su cuenta de residente.
+   - Aprobado, en su menú aparecen «Mi tienda: productos / pedidos» o
+     «Mi servicio: solicitudes / servicios», con las mismas pantallas
+     que usan las tiendas y los técnicos.
+   - La administración puede quitarle la tienda o el servicio cuando
+     quiera, sin tocar su acceso de residente.
+   ========================================================= */
+(function () {
+  const PROD = () => window.GATEWISE_MODO === 'produccion';
+  const esVecino = () => S.user && (S.user.rol === 'residente' || S.user.rol === 'inquilino');
+  const yo = () => (S.user && (typeof usuario === 'function' ? usuario(S.user.id) : null)) || S.user;
+  const provs = () => { if (!DB.provSolicitudes) DB.provSolicitudes = []; return DB.provSolicitudes; };
+  const miPendiente = t => provs().find(s => s.residenteId === S.user.id && s.estado === 'pendiente' && (!t || s.tipo === t));
+  const CATS = ['Comida', 'Postres y repostería', 'Bebidas', 'Ropa y accesorios', 'Belleza', 'Hogar', 'Mascotas', 'Tecnología', 'Otro'];
+  let FOTO = null;
+
+  /* ---------- Formulario del residente ---------- */
+  window.nrAbrir = function (tipo) {
+    if (!esVecino()) return;
+    const u = yo() || {};
+    tipo = tipo === 'tecnico' ? 'tecnico' : 'tienda';
+    if (tipo === 'tienda' && u.vende) return go('productos');
+    if (tipo === 'tecnico' && u.ofrece) return go('solicitudes');
+    const p = miPendiente(tipo);
+    if (p) return sheet('Solicitud en revisión', `<p>Tu solicitud para ${tipo === 'tecnico' ? 'ofrecer un servicio' : 'abrir tu tienda'} <b>«${esc(p.negocio || p.oficio || '')}»</b> está en revisión. Te avisaremos cuando la administración la apruebe.</p><button class="btn block" onclick="closeSheet()">Entendido</button>`);
+    FOTO = null;
+    const esT = tipo === 'tecnico';
+    sheet(esT ? 'Ofrecer un servicio' : 'Abrir mi tienda', `<form onsubmit="nrEnviar(event,'${tipo}')">
+      <p class="note" style="margin-top:0">${esT ? 'Ofrece tu oficio a los vecinos (electricidad, plomería, clases, costura…).' : 'Vende a tus vecinos lo que haces o tienes en casa.'} La administración revisa tu solicitud antes de publicarla.</p>
+      <div class="seg" role="tablist" style="margin-bottom:12px"><button type="button" class="${esT ? '' : 'on'}" onclick="nrAbrir('tienda')">🛍️ Tienda</button><button type="button" class="${esT ? 'on' : ''}" onclick="nrAbrir('tecnico')">🧰 Servicio</button></div>
+      <label class="f">${esT ? 'Nombre de tu servicio' : 'Nombre de tu tienda'}<input name="negocio" required maxlength="60" placeholder="${esT ? 'Ej. Electricidad Rivas' : 'Ej. Pupusas Doña Marta'}"></label>
+      ${esT ? `<label class="f">¿Qué oficio o servicio?<input name="oficio" required maxlength="60" placeholder="Ej. Electricista, clases de inglés"></label>`
+        : `<label class="f">Categoría<select name="categoria">${CATS.map(c => `<option>${c}</option>`).join('')}</select></label>`}
+      <label class="f">${esT ? '¿Qué trabajos haces?' : '¿Qué vendes?'}<textarea name="descripcion" required maxlength="400" rows="3" placeholder="${esT ? 'Instalaciones, reparaciones, presupuestos sin costo…' : 'Pupusas de queso y revueltas, pedidos de sábado a domingo…'}"></textarea></label>
+      <label class="f">Horario de atención<input name="horario" maxlength="60" placeholder="Ej. Lunes a sábado, 8 a. m. a 5 p. m."></label>
+      <label class="f">Teléfono o WhatsApp<input name="tel" type="tel" inputmode="tel" maxlength="20" value="${esc(u.tel || '')}" required></label>
+      ${esT ? '' : `<label class="pv-chk"><input type="checkbox" name="domicilio" checked><span>Entrego a domicilio dentro de la residencial</span></label>`}
+      <div class="f"><span style="display:block;font-weight:600;margin-bottom:6px">Logo o foto (opcional)</span><div id="nrFoto"><label class="btn ghost block">📷 Agregar foto<input type="file" accept="image/*" hidden onchange="nrFotoSel(this)"></label></div></div>
+      <button class="btn block big-ok">Enviar solicitud</button>
+      <button type="button" class="btn ghost block" onclick="closeSheet()">Cancelar</button>
+    </form>`);
+  };
+  window.nrFotoSel = async function (inp) {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    try { FOTO = await leerArchivo(f); const el = document.getElementById('nrFoto'); if (el) el.innerHTML = `<div class="row" style="gap:12px;align-items:center"><img src="${FOTO.data}" alt="Logo" style="width:64px;height:64px;border-radius:16px;object-fit:cover"><label class="btn ghost smb">Cambiar<input type="file" accept="image/*" hidden onchange="nrFotoSel(this)"></label></div>`; }
+    catch (e) { toast('No se pudo leer la foto'); }
+  };
+  window.nrEnviar = async function (e, tipo) {
+    e.preventDefault(); if (!esVecino()) return;
+    const f = new FormData(e.target); const g = k => String(f.get(k) || '').trim();
+    const u = yo() || {}; const esT = tipo === 'tecnico';
+    const casa = typeof casaNom === 'function' ? casaNom(S.user.casaId) : '';
+    const s = {
+      id: 'pv' + uid(), tipo: esT ? 'tecnico' : 'tienda', nombre: u.nombre || S.user.nombre, dui: u.dui || '', tel: g('tel'), email: u.email || '',
+      descripcion: g('descripcion'), horario: g('horario'), oficio: esT ? g('oficio') : '', negocio: g('negocio'), categoria: esT ? 'Servicios' : (g('categoria') || 'Otro'),
+      domicilio: esT ? true : !!f.get('domicilio'), direccion: casa, foto: FOTO || null, duiFoto: null, fecha: nowISO(), estado: 'pendiente',
+      vive: true, viveCasa: S.user.casaId || '', viveTxt: casa, recCasa: '', recomienda: '', residenteId: S.user.id
+    };
+    if (JSON.stringify(s).length > 880000) return toast('La foto pesa mucho. Elige otra');
+    const btn = e.target.querySelector('button:not([type=button])'); if (btn) btn.disabled = true;
+    try {
+      if (PROD()) {
+        await GW_PROD.fs.doc('r/' + RES + '/provSolicitudes/' + s.id).set({ d: JSON.stringify(s), estado: 'pendiente', _t: firebase.firestore.FieldValue.serverTimestamp() });
+        provs().unshift(s);
+      } else provs().unshift(s);
+      notificar(DB.usuarios.filter(x => x.rol === 'admin' && x.activo !== false).map(x => x.id), esT ? '🧰 Un vecino quiere ofrecer un servicio' : '🛍️ Un vecino quiere abrir su tienda', `${s.negocio} · ${casa}`, { tab: 'proveedores' });
+      save(); closeSheet(); render();
+      sheet('¡Solicitud enviada!', `<div class="b-conf" style="--b-c:var(--ok)"><div class="b-conf-ic">${ic('check', 26)}</div><p>La administración revisará <b>«${esc(s.negocio)}»</b>. Te avisaremos cuando ${esT ? 'tu servicio' : 'tu tienda'} esté publicada.</p></div><button class="btn block" onclick="closeSheet()">Listo</button>`);
+    } catch (x) { console.warn('negocio', x); if (btn) btn.disabled = false; toast('No se pudo enviar. Revisa tu internet e intenta de nuevo'); }
+  };
+
+  /* ---------- Administración: aprobar sin crear otro usuario ---------- */
+  if (typeof verProv === 'function') {
+    const bv = verProv;
+    verProv = function (id) {
+      const r = bv.apply(this, arguments);
+      try {
+        const s = provs().find(x => x.id === id); if (!s || !s.residenteId) return r;
+        const box = document.querySelector('#ov .sheet'); if (!box) return r;
+        const u = usuario(s.residenteId); const casa = u && typeof casaNom === 'function' ? casaNom(u.casaId) : (s.viveTxt || '');
+        const aviso = `<p class="pv-nota" style="margin-top:10px">${ic('home', 16)}<span>Es <b>residente</b> (${esc(casa)}). No se crea otro usuario: ${s.tipo === 'tecnico' ? 'el servicio' : 'la tienda'} aparece en su propio panel.</span></p>`;
+        const form = box.querySelector('form[onsubmit^="aprobarProv"]');
+        if (form && s.estado === 'pendiente') form.outerHTML = aviso + `<div class="btns" style="margin-top:14px"><button type="button" class="btn ok" onclick="nrAprobar('${s.id}')">Aprobar ${s.tipo === 'tecnico' ? 'servicio' : 'tienda'}</button><button type="button" class="btn bad" onclick="rechazarProv('${s.id}')">Rechazar</button></div>`;
+        if (s.estado === 'aprobada') {
+          box.querySelectorAll('.ap-res').forEach(x => x.remove());
+          const nota = [...box.querySelectorAll('p.note')].find(p => /Aprobado el/.test(p.textContent));
+          const activo = u && (s.tipo === 'tecnico' ? u.ofrece : u.vende);
+          const h = aviso + `<div class="btns" style="margin-top:10px">${activo ? `<button type="button" class="btn ghost" onclick="nrQuitar('${s.id}')">Quitar ${s.tipo === 'tecnico' ? 'el servicio' : 'la tienda'}</button>` : `<button type="button" class="btn" onclick="nrAprobar('${s.id}',true)">Volver a activar</button>`}</div>`;
+          if (nota) { nota.textContent = 'Aprobado el ' + fFecha(String(s.aprobada || s.fecha).slice(0, 10)) + ' · ligado a su cuenta de residente'; nota.insertAdjacentHTML('afterend', h); } else box.insertAdjacentHTML('beforeend', h);
+        }
+      } catch (e) { console.warn('negocio', e); }
+      return r;
+    };
+    window.verProv = verProv;
+  }
+  window.nrAprobar = function (id, reactivar) {
+    const s = provs().find(x => x.id === id); if (!s) return;
+    const u = usuario(s.residenteId); if (!u) return toast('El residente ya no existe');
+    if (s.tipo === 'tecnico') {
+      Object.assign(u, { ofrece: true, oficio: s.oficio || 'Servicios', disponible: true, zona: u.zona || '', horario: s.horario || u.horario || '', descripcion: s.descripcion || u.descripcion || '' });
+      if (!u.negocio) u.negocio = s.negocio;
+      DB.servicios = DB.servicios || [];
+      if (!DB.servicios.some(x => x.proId === u.id)) DB.servicios.push({ id: 'ps' + uid(), proId: u.id, nombre: s.negocio || ('Servicio de ' + String(s.oficio || '').toLowerCase()), descripcion: s.descripcion || '', precioTipo: 'cotizar', precio: '', duracion: '', activo: true });
+    } else {
+      let logo = s.foto || u.logo || null;
+      try { if (!logo && typeof genLogo === 'function') { const ini = String(s.negocio || u.nombre).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); logo = genLogo(ini || 'GW', '#6d28d9'); } } catch (x) { }
+      Object.assign(u, { vende: true, negocio: s.negocio, categoria: s.categoria || 'Otro', descripcion: s.descripcion || '', horario: s.horario || '', domicilio: !!s.domicilio, retiro: true, envio: u.envio || 0, direccion: s.direccion || '', logo });
+    }
+    if (s.tel && !u.tel) u.tel = s.tel;
+    Object.assign(s, { estado: 'aprobada', aprobada: s.aprobada || nowISO(), userId: u.id, user: u.user || '' });
+    notificar([u.id], s.tipo === 'tecnico' ? '✅ Tu servicio fue aprobado' : '✅ Tu tienda fue aprobada', s.tipo === 'tecnico' ? 'Ya apareces en Servicios. Revisa «Mi servicio» en el menú Más.' : 'Ya apareces en la Tienda. Agrega tus productos en «Mi tienda».', { tab: 'mas' });
+    save(); closeSheet(); render(); toast(reactivar ? 'Activado de nuevo' : 'Aprobado: ya aparece en el panel del residente');
+  };
+  window.nrQuitar = function (id) {
+    const s = provs().find(x => x.id === id); if (!s) return; const u = usuario(s.residenteId); if (!u) return;
+    sheet('¿Quitar ' + (s.tipo === 'tecnico' ? 'el servicio?' : 'la tienda?'), `<p>Dejará de aparecer para los vecinos. ${esc(u.nombre)} sigue siendo residente y puede entrar a la app normalmente.</p>
+      <button class="btn bad block" onclick="nrQuitarOk('${id}')">Sí, quitar</button><button class="btn ghost block" onclick="closeSheet()">Cancelar</button>`);
+  };
+  window.nrQuitarOk = function (id) {
+    const s = provs().find(x => x.id === id); if (!s) return; const u = usuario(s.residenteId); if (!u) return;
+    if (s.tipo === 'tecnico') { u.ofrece = false; (DB.servicios || []).forEach(x => { if (x.proId === u.id) x.activo = false; }); } else u.vende = false;
+    notificar([u.id], s.tipo === 'tecnico' ? 'Tu servicio fue pausado' : 'Tu tienda fue pausada', 'Comunícate con la administración si tienes dudas.', { tab: 'mas' });
+    save(); closeSheet(); render(); toast('Listo');
+  };
+
+  /* ---------- Panel del residente: menú y pantallas ---------- */
+  ['residente', 'inquilino'].forEach(rol => {
+    const V = VIEWS[rol]; if (!V) return;
+    if (VIEWS.vendedor) { if (!V.productos && VIEWS.vendedor.productos) V.productos = VIEWS.vendedor.productos; if (!V.pedidos && VIEWS.vendedor.pedidos) V.pedidos = VIEWS.vendedor.pedidos; }
+    if (VIEWS.profesional) { if (!V.solicitudes && VIEWS.profesional.solicitudes) V.solicitudes = VIEWS.profesional.solicitudes; if (VIEWS.profesional.servicios) V.servPro = VIEWS.profesional.servicios; if (!V.perfilPro && VIEWS.profesional.perfilPro) V.perfilPro = VIEWS.profesional.perfilPro; }
+    const bm = V.mas;
+    if (bm) V.mas = function () {
+      const h = bm.apply(this, arguments); if (typeof h !== 'string' || h.includes('nr-menu')) return h;
+      const u = yo() || {};
+      let it = '<h3 class="nr-menu">Mi negocio</h3>';
+      if (u.vende) it += menuItem('store', 'Mi tienda: productos', "go('productos')") + menuItem('bag', 'Mi tienda: pedidos', "go('pedidos')");
+      else it += menuItem('store', miPendiente('tienda') ? 'Abrir mi tienda · en revisión' : 'Abrir mi tienda', "nrAbrir('tienda')");
+      if (u.ofrece) it += menuItem('tool', 'Mi servicio: solicitudes', "go('solicitudes')") + menuItem('tool', 'Mi servicio: lo que ofrezco', "go('servPro')");
+      else it += menuItem('tool', miPendiente('tecnico') ? 'Ofrecer un servicio · en revisión' : 'Ofrecer un servicio', "nrAbrir('tecnico')");
+      const i = h.indexOf('<h3'); return i >= 0 ? h.slice(0, i) + it + h.slice(i) : h + it;
+    };
+    // Invitación en Tienda y en Servicios
+    const conCta = (key, tipo, txt) => { const b = V[key]; if (!b) return; V[key] = function () { const h = b.apply(this, arguments); if (typeof h !== 'string' || h.includes('nr-cta')) return h; const u = yo() || {}; if ((tipo === 'tienda' && u.vende) || (tipo === 'tecnico' && u.ofrece)) return h; const cta = `<button type="button" class="card nr-cta" onclick="nrAbrir('${tipo}')"><span class="nr-cta-ic">${ic(tipo === 'tecnico' ? 'tool' : 'store', 22)}</span><span class="grow"><b>${txt[0]}</b><span>${txt[1]}</span></span>${ic('chev', 18)}</button>`; const i = h.indexOf('</h2>'); return i >= 0 ? h.slice(0, i + 5) + cta + h.slice(i + 5) : cta + h; }; };
+    conCta('tienda', 'tienda', ['¿Vendes algo? Abre tu tienda', 'Vende a tus vecinos desde la app']);
+    conCta('servicios', 'tecnico', ['¿Ofreces un servicio?', 'Publícalo para tus vecinos']);
+  });
+  if (typeof go === 'function') { const bg = go; go = function (t) { S.modoPro = ['solicitudes', 'servPro', 'perfilPro'].includes(t) && S.user && S.user.rol !== 'profesional'; return bg.apply(this, arguments); }; window.go = go; }
+  if (typeof BACK !== 'undefined') ['productos', 'pedidos', 'solicitudes', 'servPro', 'perfilPro'].forEach(k => { if (!BACK[k]) BACK[k] = 'mas'; });
+
+  const st = document.createElement('style'); st.id = 'gw-negocio-css';
+  st.textContent = `.nr-cta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;margin:4px 0 14px;border-style:dashed!important}
+.nr-cta-ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--fr-verde,#00C27A) 18%,transparent);color:var(--text);flex:none}
+.nr-cta b{display:block;font-size:16px}.nr-cta span span,.nr-cta .grow span{font-size:14px;color:var(--muted)}`;
+  document.head.appendChild(st);
+})();
+
 /* ---------------- Arranque ---------------- */
 document.addEventListener('input',e=>{const t=e.target;const nm=t&&(t.name||t.id)||'';if(!t||t.type==='file'||!/(^|[._])dui$/i.test(nm)||esCondo()||paisRes()!=='SV')return;const d=t.value.replace(/\D/g,'').slice(0,9);t.value=d.length>8?d.slice(0,8)+'-'+d.slice(8):d});
 if(window.GATEWISE_MODO!=='produccion'){
@@ -8939,6 +9167,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
           .forEach(c => q.push(w(c, 'casaId', casa)));
         q.push({ doc: 'casasPriv/' + casa });
       }
+      q.push(w('tiendaPedidos', 'vendedorId', uid), w('servSol', 'proId', uid)); // su propia tienda o servicio
       return q;
     }
     if (rol === 'vigilante') return comunes.concat(['perfiles', 'casasPriv', 'pases', 'autorizaciones', 'acadIngresos', 'academias', 'areas', 'eventos', 'kvReserva'].map(full), [w('alumnos', 'tipo', 'ext'), w('notifs', 'userId', uid)]);
