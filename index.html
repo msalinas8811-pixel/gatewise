@@ -1366,7 +1366,7 @@ function crearUsuario(e,rol){e.preventDefault();const f=new FormData(e.target);i
 function toggleUser(id){const u=usuario(id);u.activo=!u.activo;save();render()}
 
 /* Perfil de la residencial */
-function vResidencial(){S.rtab=S.rtab||'general';return `<h2>Perfil de la residencial</h2>${seg('rtab',[['general','Datos generales'],['marca','Logo y colores'],['equipo','Directiva y personal'],['portones','Portones']])}${S.rtab==='marca'?resMarca():(S.mk=null,S.rtab==='equipo'?resEquipo():S.rtab==='portones'?resPortones():resGeneral())}`}
+function vResidencial(){S.rtab=S.rtab||'general';return `<h2>Perfil de la residencial</h2>${seg('rtab',[['general','Datos generales'],['marca','Logo'],['equipo','Directiva y personal'],['portones','Portones']])}${S.rtab==='marca'?resMarca():(S.mk=null,S.rtab==='equipo'?resEquipo():S.rtab==='portones'?resPortones():resGeneral())}`}
 function resGeneral(){const r=DB.residencial;const fld=(k,l,v,t='text')=>`<label class="f">${l}<input name="${k}" type="${t}" value="${esc(v||'')}"></label>`;const pr=miembro('Presidente'),ad=miembro('Administrador(a)');
   return `<div class="card"><div class="kv"><span>Casas</span><b>${DB.casas.length} (${DB.casas.filter(c=>c.duenoId).length} con propietario)</b><span>Polígonos</span><b>${[...new Set(DB.casas.map(c=>c.pasaje))].length}</b><span>Portones</span><b>${portones().length}</b><span>Presidente</span><b>${esc(pr?pr.nombre:'Sin asignar')}</b><span>Administración</span><b>${esc(ad?ad.nombre:'Sin asignar')}</b><span>Vigilantes</span><b>${DB.usuarios.filter(u=>u.rol==='vigilante'&&u.activo).length}</b>${esCondo()?`<span>Torres</span><b>${esc((r.estructura&&r.estructura.torres||[]).join(', ')||'—')}</b><span>Cuota HOA</span><b>${DB.config.modoCuota==='area'?money(DB.config.tarifaArea)+' por '+(DB.config.areaUnidad||areaU()):money(DB.config.cuota)+' por unidad'}${DB.config.reserva?' · reserva '+DB.config.reserva+'%':''}</b><span>Amenidades</span><b>${esc((r.amenidades||[]).join(', ')||'—')}</b><span>Administradora</span><b>${esc(r.empresa||'—')}</b>`:''}</div></div>
   <form onsubmit="guardarResidencial(event)"><h3>Datos generales</h3><div class="card">${fld('r.nombre','Nombre de la residencial',r.nombre)}${fld('r.direccion','Dirección',r.direccion)}${fld('r.municipio','Municipio / departamento',r.municipio)}${fld('r.registro','N° de registro / NIT de la asociación',r.registro)}<div class="two">${fld('r.telefono','Teléfono',r.telefono,'tel')}${fld('r.email','Correo',r.email,'email')}</div>${fld('v.telefono','Teléfono de portería',r.vigilancia.telefono,'tel')}</div>
@@ -2300,10 +2300,10 @@ const lum=h=>{const c=hexRgb(h).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow
 const sobre=h=>lum(h)>.42?'#111827':'#ffffff';
 function claro(h){let c=h;for(let i=0;i<8&&lum(c)<.32;i++)c=mezcla(c,'#ffffff',.22);return c}
 const esOscuro=()=>{const t=document.documentElement.getAttribute('data-theme');return t?t==='dark':!!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)};
-function marcaActual(){if(S.mk&&S.tab==='residencial'&&S.rtab==='marca')return S.mk;if(S.user&&S.user.rol==='superadmin')return null;if(!S.user&&(S.modoPlat||!PLAT||!PLAT.residenciales.length))return null;return DB&&DB.residencial&&DB.residencial.marca||null}
-const marcaPri=()=>{const m=marcaActual();return m&&m.pri||'#0f766e'};
+function marcaActual(){if(S.mk&&S.tab==='residencial'&&S.rtab==='marca')return S.mk;if(S.user&&S.user.rol==='superadmin')return null;if(!S.user&&(S.modoPlat||!PLAT||!PLAT.residenciales.length))return null;const m_=DB&&DB.residencial&&DB.residencial.marca;return m_?Object.assign({},m_,{pri:'#0B1F4D',bar:''}):null}
+const marcaPri=()=>'#0B1F4D'; // colores fijos de GateWise (Fresco)
 function aplicarMarca(){const r=document.documentElement.style;const m=marcaActual();const keys=['--pri','--onpri','--pri2','--bar','--onbar'];
-  if(!m||!m.pri){keys.forEach(k=>r.removeProperty(k));setThemeMeta('#0f766e');return}
+  keys.forEach(k=>r.removeProperty(k));setThemeMeta('#0B1F4D');return; // colores personalizados desactivados: siempre la paleta Fresco
   const dk=esOscuro();const pri=dk?claro(m.pri):m.pri;const bar=m.bar||m.pri;const barV=dk?mezcla(bar,'#0b1218',.35):bar;
   r.setProperty('--pri',pri);r.setProperty('--onpri',sobre(pri));r.setProperty('--pri2',dk?mezcla(pri,'#141e27',.72):mezcla(m.pri,'#ffffff',.86));r.setProperty('--bar',barV);r.setProperty('--onbar',sobre(barV));setThemeMeta(barV)}
 function setThemeMeta(c){let t=document.querySelector('meta[name=theme-color]');if(!t){t=document.createElement('meta');t.name='theme-color';document.head.appendChild(t)}t.content=c}
@@ -2316,16 +2316,13 @@ const logoImg=(l,s=34,r='10px',extra='')=>l&&l.data?`<img src="${l.data}" alt=""
 /* --- Pestaña "Logo y colores" en el perfil de la residencial --- */
 function resMarca(){const R=DB.residencial;if(!S.mk)S.mk=Object.assign({pri:'#0f766e',bar:'',logo:null},R.marca||{});const m=S.mk;const bar=m.bar||m.pri;
   const sw=(k,val)=>PALETA.map(([c,n])=>`<button type="button" title="${n}" aria-label="${n}" onclick="setMk('${k}','${c}')" style="width:38px;height:38px;border-radius:50%;background:${c};border:${(val||'').toLowerCase()===c?'3px solid var(--text)':'2px solid var(--line)'};padding:0"></button>`).join('');
-  return `<p class="note" style="margin-top:-4px">Personaliza la app con el logo y los colores de ${esc(R.nombre)}. Todos los usuarios de la residencial (residentes, vigilancia, cobradores y tiendas) la verán así.</p>
+  return `<p class="note" style="margin-top:-4px">Personaliza la app con el logo de ${esc(R.nombre)}. Los colores son los de GateWise y son iguales para todas las residenciales. Todos los usuarios de la residencial (residentes, vigilancia, cobradores y tiendas) la verán así.</p>
   <h3>Vista previa</h3><div class="card" style="padding:0;overflow:hidden"><div style="background:var(--bar,var(--pri));color:var(--onbar,var(--onpri));padding:12px 14px;display:flex;align-items:center;gap:10px">${logoImg(m.logo,38)||`<div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);display:grid;place-items:center">${ic('houses',20)}</div>`}<div><small style="opacity:.85">Residente · Casa 1</small><b style="display:block">${esc(R.nombre)}</b></div></div><div style="padding:14px"><div class="btns" style="margin-top:0"><button class="btn smb">Botón principal</button><button class="btn smb sec">Secundario</button></div><div class="months" style="margin-top:8px">${chip('Al día','ok')}${chip('Seleccionado','info')}</div></div></div>
   <h3>Logo de la residencial</h3><div class="card"><div class="row">${logoImg(m.logo,72,'16px')||`<div class="av" style="width:72px;height:72px">${ic('houses',30)}</div>`}<div class="grow"><label class="btn sec smb" style="cursor:pointer">${ic('plus',14)} ${m.logo?'Cambiar logo':'Subir logo'}<input type="file" accept="image/*" hidden onchange="subirLogoRes(this)"></label>${m.logo?`<button class="btn ghost smb" style="margin-left:6px" onclick="S.mk.logo=null;render()">Quitar</button>`:''}<p class="note" style="margin:6px 0 0">PNG con fondo transparente o JPG cuadrado. Aparece en la barra superior, la pantalla de entrada, recibos y reportes PDF.</p></div></div></div>
-  <h3>Color principal</h3><div class="card"><p class="note" style="margin-top:0">Botones, pestañas activas y selecciones.</p><div class="months" style="gap:8px">${sw('pri',m.pri)}</div><label class="f" style="margin-top:12px">Otro color<input type="color" value="${esc(m.pri)}" oninput="setMk('pri',this.value,true)" style="height:46px;padding:4px"></label></div>
-  <h3>Color de la barra superior</h3><div class="card"><label class="chk" style="border:0;padding-top:0"><input type="checkbox" ${m.bar?'':'checked'} onchange="setMk('bar',this.checked?'':S.mk.pri)"><span class="sm">Igual que el color principal</span></label>${m.bar?`<div class="months" style="gap:8px;margin-top:8px">${sw('bar',m.bar)}</div><label class="f" style="margin-top:12px">Otro color<input type="color" value="${esc(m.bar)}" oninput="setMk('bar',this.value,true)" style="height:46px;padding:4px"></label>`:''}</div>
-  ${lum(m.pri)>.6?alertBox('warn','Color muy claro','El texto de los botones se verá en negro para que se pueda leer.'):''}
-  <button class="btn block big-ok" onclick="guardarMarca()">Guardar logo y colores</button><button class="btn ghost block" onclick="S.mk={pri:'#0f766e',bar:'',logo:S.mk.logo};render()">Volver a los colores de GateWise</button>`}
+  <button class="btn block big-ok" onclick="guardarMarca()">Guardar logo</button>`}
 function setMk(k,v,vivo){S.mk[k]=v;if(vivo){aplicarMarca();const p=document.querySelector('main .card div[style*="--bar"]');return}const y=window.scrollY;render();window.scrollTo(0,y)}
 async function subirLogoRes(inp){try{const l=await leerLogo(inp.files[0]);if(l){S.mk.logo=l;render();toast('Logo listo. Toca "Guardar" para aplicarlo')}}catch(e){toast('Imagen no válida')}}
-function guardarMarca(){const m=S.mk;DB.residencial.marca={pri:m.pri,bar:m.bar||'',logo:m.logo||null};save();const pr=PLAT.residenciales.find(r=>r.id===RES);if(pr){pr.pri=m.pri;savePlat()}S.mk=null;render();toast('Logo y colores guardados')}
+function guardarMarca(){const m=S.mk;DB.residencial.marca={pri:m.pri,bar:m.bar||'',logo:m.logo||null};save();const pr=PLAT.residenciales.find(r=>r.id===RES);if(pr){pr.pri=m.pri;savePlat()}S.mk=null;render();toast('Logo guardado')}
 /* --- Logo y portada del negocio (tienda) --- */
 let NEGLOGO,NEGPORT;
 function camposMarcaNeg(v){v=v||{};return `<h3 style="margin-top:4px">Imagen del negocio</h3><div class="row" style="margin-bottom:10px"><div id="negLogoPrev">${logoImg(v.logo,64,'50%')||`<div class="av" style="width:64px;height:64px;border-radius:50%">🛍️</div>`}</div><div class="grow"><label class="btn sec smb" style="cursor:pointer">${ic('plus',14)} Logo del negocio<input type="file" accept="image/*" hidden onchange="logoNeg(this)"></label><p class="note" style="margin:6px 0 0">Se muestra en la lista de tiendas y en tus pedidos.</p></div></div>
@@ -3019,7 +3016,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-65';
+const APP_VERSION='2026.11.21-70';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -3484,10 +3481,10 @@ const horarioAc=a=>`${(a.dias||[]).slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(
 const catAuto=(a,ed)=>ed==null?null:(a.categorias||[]).find(c=>ed>=+c.min&&ed<=+c.max)||null;
 const catDe=al=>{const a=acad(al.acadId);if(!a)return null;return (al.catId&&a.categorias.find(c=>c.id===al.catId))||catAuto(a,edadDe(al.fnac))};
 const cuotaAl=al=>{const a=acad(al.acadId);if(al.cuota!==''&&al.cuota!=null)return +al.cuota;return +(al.tipo==='ext'?a.cuotaExt:a.cuotaRes)||0};
-const pagadoPer=(id,p)=>DB.acadPagos.some(x=>x.alumnoId===id&&x.periodo===p&&x.concepto==='mensualidad');
+const pagadoPer=(id,p)=>DB.acadPagos.some(x=>x.alumnoId===id&&x.periodo===p&&x.concepto==='mensualidad'&&x.estado!=='rechazado');
 function debeAl(al){const out={mora:[],pend:[]};if(!al||al.estado!=='activo')return out;const a=acad(al.acadId);if(!a||cuotaAl(al)<=0)return out;const hoy=ymd(),cur=hoy.slice(0,7);let p=(al.desde||hoy).slice(0,7),g=0;
   const ini=al.desde||hoy;while(p<=cur&&g++<60){if(!pagadoPer(al.id,p)){let vence=p+'-'+String(Math.min(28,+a.diaPago||10)).padStart(2,'0');if(p===ini.slice(0,7)&&ini>vence)vence=addDays(ini,7);if(hoy>vence)out.mora.push(p);else out.pend.push(p)}p=addMonths(p,1)}return out}
-const inscPagada=al=>{const a=acad(al.acadId);return !(+a.inscripcion>0)||DB.acadPagos.some(p=>p.alumnoId===al.id&&p.concepto==='inscripcion')};
+const inscPagada=al=>{const a=acad(al.acadId);return !(+a.inscripcion>0)||DB.acadPagos.some(p=>p.alumnoId===al.id&&p.concepto==='inscripcion'&&p.estado!=='rechazado')};
 function estadoPagoAl(al){const d=debeAl(al);return d.mora.length?{l:d.mora.length+' mes(es) en mora',c:'bad',n:d.mora.length}:d.pend.length?{l:'Pago pendiente',c:'warn',n:0}:{l:'Al día',c:'ok',n:0}}
 function nuevoCodigo(){let c,g=0;do{c=String(Math.floor(100000+Math.random()*900000))}while(g++<50&&(DB.alumnos.some(a=>a.codigo===c)||DB.pases.some(p=>p.pin===c)));return c}
 const codF=c=>String(c||'').replace(/(\d{3})(\d{3})/,'$1 $2');
@@ -3581,14 +3578,14 @@ function guardarAlumno(e,aid,id){e.preventDefault();const F=new FormData(e.targe
 function codigoCard(al){const a=acad(al.acadId);const st=accesoAl(al);const txt=`Hola ${al.resp&&al.resp.nombre||''}. Código de ingreso a ${DB.residencial.nombre} para ${al.nombre} (${a.nombre}): ${codF(al.codigo)}. Preséntalo en portería. Horario: ${horarioAc(a)}.`;
   return `<div class="codigo6 ${st.bloq?'bloq':''}"><small>Código de ingreso para vigilancia</small><b>${codF(al.codigo)}</b><span>${st.bloq?'Bloqueado por falta de pago':'Válido en los días y horario de la academia'}</span><div class="btns">${al.resp&&al.resp.tel?`<a class="btn smb" target="_blank" rel="noopener" href="${waHref(al.resp.tel,txt)}">${ic('chat',15)} Enviar por WhatsApp</a>`:''}${S.user.rol==='admin'?`<button class="btn smb" onclick="nuevoCodAl('${al.id}')">${ic('reset',15)} Cambiar código</button>`:''}</div></div>`}
 function nuevoCodAl(id){const al=alumno(id);al.codigo=nuevoCodigo();save();closeSheet();render();verAlumno(id);toast('Código nuevo: '+codF(al.codigo)+'. El anterior ya no funciona.')}
-const pagoRow=p=>`<div class="slot6"><span class="grow"><b>${p.concepto==='inscripcion'?'Inscripción':perL(p.periodo)}</b><span class="sm muted"> · ${fFecha(p.fecha)} · ${METODO_AC[p.metodo]||p.metodo}${p.ref?' · '+esc(p.ref):''}</span></span><b>${money(p.monto)}</b><button class="icon-btn" onclick="reciboAc('${p.grp||p.id}')" aria-label="Recibo" title="Recibo PDF">${ic('doc',17)}</button></div>`;
+const pagoRow=p=>{const adm=S.user&&S.user.rol==='admin',g=p.grp||p.id;return `<div class="slot6"${p.estado==='rechazado'?' style="opacity:.6"':''}><span class="grow"><b>${p.concepto==='inscripcion'?'Inscripción':perL(p.periodo)}</b><span class="sm muted"> · ${fFecha(p.fecha)} · ${METODO_AC[p.metodo]||p.metodo}${p.ref?' · '+esc(p.ref):''}</span>${p.estado==='revision'?' '+chip('En revisión','info'):p.estado==='rechazado'?' '+chip('Rechazado','bad'):''}</span><b>${money(p.monto)}</b>${p.estado==='revision'||p.estado==='rechazado'?(p.comprobante?`<button class="icon-btn" onclick="acVerComp('${g}')" aria-label="Ver comprobante" title="Comprobante">${ic('doc',17)}</button>`:''):`<button class="icon-btn" onclick="reciboAc('${g}')" aria-label="Recibo" title="Recibo PDF">${ic('doc',17)}</button>`}</div>${adm&&p.estado==='revision'&&p.comprobante!==undefined?`<div class="btns" style="margin:-2px 0 8px"><button class="btn ok smb" onclick="acAprobar('${g}')">Aprobar</button><button class="btn bad smb" onclick="acRechazar('${g}')">Rechazar</button></div>`:''}`};
 function verAlumno(id){const al=alumno(id);if(!al)return;const a=acad(al.acadId),c=catDe(al),e=estadoPagoAl(al),d=debeAl(al),adm=S.user.rol==='admin',ed=edadDe(al.fnac),R=al.resp||{};
   const pag=DB.acadPagos.filter(p=>p.alumnoId===id).sort((x,y)=>(y.periodo||'').localeCompare(x.periodo||'')||(y.fecha||'').localeCompare(x.fecha||''));const ing=DB.acadIngresos.filter(i=>i.alumnoId===id).slice(-5).reverse();
   sheet(esc(al.nombre),`<div class="row" style="gap:12px;margin-bottom:12px"><span class="mic c-${depCol(a.deporte)}" style="width:52px;height:52px;border-radius:16px;font-weight:800;font-size:17px">${esc(iniN(al.nombre))}</span><div class="grow"><b>${esc(a.nombre)}</b><div class="sm muted">${ed??'—'} años · ${c?esc(c.nombre):'Sin categoría'}${al.nivel?' · '+esc(al.nivel):''}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${al.tipo==='ext'?chip('De afuera','info'):chip(casaNom(al.casaId),'')}${al.estado==='activo'?chip(e.l,e.c):chip('De baja','mut')}</div></div></div>
   ${al.tipo==='ext'&&al.estado==='activo'&&(adm||S.user.rol==='vigilante')?codigoCard(al):''}
   <h3>Responsable</h3><div class="card kv"><span>Nombre</span><b>${esc(R.nombre||'—')}</b>${R.parentesco?`<span>Parentesco</span><b>${esc(R.parentesco)}</b>`:''}${R.tel?`<span>Teléfono</span><b><a href="tel:${esc(R.tel)}">${esc(R.tel)}</a></b>`:''}${R.dui?`<span>DUI</span><b>${esc(R.dui)}</b>`:''}${R.email?`<span>Correo</span><b>${esc(R.email)}</b>`:''}${R.dir?`<span>Dirección</span><b>${esc(R.dir)}</b>`:''}${al.autorizados?`<span>Autorizados</span><b>${esc(al.autorizados)}</b>`:''}${al.recom?`<span>Recomendado por</span><b>${casaNom(al.recom)} · ${esc(duenoNom(al.recom))}</b>`:''}<span>Inscrito desde</span><b>${fFecha(al.desde)}</b><span>Cuota</span><b>${money(cuotaAl(al))} al mes${al.cuota!==''&&al.cuota!=null?' (especial)':''}</b>${al.nota?`<span>Nota</span><b>${esc(al.nota)}</b>`:''}</div>
   <h3>Pagos</h3>${d.mora.length?alertBox('bad',`Debe ${d.mora.length} mes(es)`,d.mora.map(perL).join(', ')+' · '+money(d.mora.length*cuotaAl(al))):d.pend.length?alertBox('warn','Mensualidad pendiente',`${d.pend.map(perL).join(', ')} · ${money(d.pend.length*cuotaAl(al))}`):''}${!inscPagada(al)&&al.estado==='activo'?alertBox('warn','Inscripción pendiente',money(a.inscripcion)):''}
-  ${adm&&al.estado==='activo'?`<button class="btn block" onclick="pagoAcad('${id}')">${ic('wallet',18)} Registrar pago</button>`:''}${!adm&&(d.mora.length||d.pend.length)?'<p class="note">Para pagar, comunícate con la administración o con el instructor.</p>':''}
+  ${adm&&al.estado==='activo'?`<button class="btn block" onclick="pagoAcad('${id}')">${ic('wallet',18)} Registrar pago</button>`:''}${!adm&&al.tipo==='res'&&al.estado==='activo'&&window.acPagarBloque?acPagarBloque(al):''}
   <div style="margin-top:10px">${pag.map(pagoRow).join('')||empty('Sin pagos registrados')}</div>
   ${al.tipo==='ext'&&ing.length?`<h3>Últimos ingresos</h3>${ing.map(i=>`<div class="slot6"><span class="grow">${fFecha(i.entrada)}</span><span class="sm muted">${i.salida?'salió '+hora(i.salida):'dentro'}</span></div>`).join('')}`:''}
   ${adm?`<h3>Acciones</h3><div class="btns"><button class="btn ghost" onclick="formAlumno('${a.id}','${id}')">${ic('gear',16)} Editar</button><button class="btn ${al.estado==='activo'?'bad':'ok'}" onclick="bajaAlumno('${id}')">${al.estado==='activo'?'Dar de baja':'Reactivar'}</button></div>`:''}`)}
@@ -5169,8 +5166,8 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
   const waNum = t => { let d = String(t || '').replace(/\D/g, ''); if (d.length === 8) d = '503' + d; return d; };
   const hecho = pid => solDB().filter(s => s.proId === pid && s.estado === 'finalizado').length;
   // ¿El profesional vive dentro de la residencial? (no necesita código de ingreso)
-  const interno = p => !!(p && p.viveCasa);
-  const viveL = p => interno(p) ? 'Vive en ' + casaNom(p.viveCasa) : 'Viene de afuera';
+  const interno = p => !!(p && (p.viveCasa || (p.rol !== 'profesional' && p.casaId)));
+  const viveL = p => interno(p) ? 'Vive en ' + casaNom(p.viveCasa || p.casaId) : 'Viene de afuera';
   const vigilantes = () => DB.usuarios.filter(u => u.rol === 'vigilante' && u.activo).map(u => u.id);
   window.proInterno6 = interno;
   function paso(s, e, por, nota) { s.estado = e; (s.hist = s.hist || []).push({ e, f: nowISO(), por, nota: nota || '' }); }
@@ -5450,12 +5447,23 @@ Object.assign(I18N,{"Casas autorizadas":"Authorized houses","Registradas ahora":
 
   /* ---------- Administración: resumen de servicios ---------- */
   function vAdmServicios() {
-    S.asv = S.asv || 'activas'; const L = solDB().slice().sort((a, b) => String(b.creado).localeCompare(String(a.creado)));
+    S.asv = S.asv || 'activas'; S.asvOf = S.asvOf || 'todos';
+    const L = solDB().slice().sort((a, b) => String(b.creado).localeCompare(String(a.creado)));
     const g = { activas: L.filter(s => ACTIVOS.includes(s.estado)), terminadas: L.filter(s => s.estado === 'finalizado'), otras: L.filter(s => ['rechazado', 'cancelado'].includes(s.estado)) };
-    return `<h2>Servicios a domicilio</h2><div class="kpis">${kpi('Profesionales', pros().length, "")}${kpi('En curso', g.activas.length, "S.asv='activas';render()")}${kpi('Terminados', g.terminadas.length, "S.asv='terminadas';render()")}</div>
-      <h3>Profesionales</h3>${pros().map(p => `<button class="item" onclick="verResenas('pro','${p.id}')">${avPro(p, 44)}<div class="grow"><b>${esc(p.negocio || p.nombre)}</b><div class="sm muted">${esc(p.oficio || '')} · ${hecho(p.id)} terminado(s)</div><div class="sm">${interno(p) ? '🏠 ' + viveL(p) + ' · sin código' : '🚪 Viene de afuera · con código de ingreso'}</div>${rateLine('pro', p.id, false)}</div>${p.disponible === false ? chip('No disponible', 'mut') : chip('Disponible', 'ok')}</button><button class="btn ghost smb" style="margin:-4px 0 10px auto;display:flex" onclick="ubicPro('${p.id}')">${ic('home', 16)}<span class="b-tx">¿Dónde vive?</span></button>`).join('') || empty('Aún no hay profesionales. Invítalos con el link de registro.')}
-      <button class="btn ghost block" onclick="go('proveedores')">${ic('userplus', 18)}<span class="b-tx">Link de registro de técnicos y tiendas</span></button>
-      <h3>Solicitudes</h3>${seg('asv', [['activas', `En curso (${g.activas.length})`], ['terminadas', `Terminadas (${g.terminadas.length})`], ['otras', 'Canceladas']])}${g[S.asv].map(s => { const p = pro(s.proId) || {}; const [el, ec] = EST[s.estado] || [s.estado]; return `<div class="item"><div class="grow"><b>${esc(s.servicioNombre)}</b><div class="sm muted">${casaNom(s.casaId)} · ${esc(p.negocio || p.nombre || '')}${s.cita ? ' · ' + citaL(s) : ''}</div></div>${chip(el, ec)}</div>`; }).join('') || empty('Sin solicitudes')}`;
+    const P = pros(); const cat = p => { const t = String(p.oficio || 'Otros servicios').trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
+    const G = {}; P.forEach(p => (G[cat(p)] = G[cat(p)] || []).push(p));
+    const cats = Object.keys(G).sort((a, b) => a.localeCompare(b, 'es')); if (S.asvOf !== 'todos' && !G[S.asvOf]) S.asvOf = 'todos';
+    const card = (p, eye) => { const r = resumenRes('pro', p.id); const enc = solDB().filter(s => s.proId === p.id && ACTIVOS.includes(s.estado)).length;
+      return `<div class="m6-card">${eye ? `<div class="m6-eye">${esc(cat(p))}</div>` : ''}<button class="m6-h" onclick="verResenas('pro','${p.id}')">${avPro(p, 48)}<span class="grow" style="min-width:0"><b>${esc(p.negocio || p.nombre)}</b><small>${esc(p.negocio && p.negocio !== p.nombre ? p.nombre : (p.oficio || ''))}</small><span style="display:block;margin-top:5px">${p.disponible === false ? chip('No disponible', 'mut') : chip('Disponible', 'ok')}</span></span></button>
+        <div class="m6-stats"><span><b>${hecho(p.id)}</b>trabajos</span><span><b>${r.n ? '★ ' + r.avg.toFixed(1) : '–'}</b>${r.n ? r.n + ' opinión(es)' : 'sin opiniones'}</span><span><b>${enc}</b>en curso</span></div>
+        <div class="m6-foot"><span>${interno(p) ? '🏠 ' + esc(viveL(p)) : '🚪 Viene de afuera'}</span><button class="m6-mini" onclick="ubicPro('${p.id}')">${ic('home', 14)} Dónde vive</button></div></div>`; };
+    const sol = s => { const p = pro(s.proId) || {}; const [el, ec] = EST[s.estado] || [s.estado]; return `<div class="item">${avPro(p, 40)}<div class="grow"><b>${esc(s.servicioNombre || 'Servicio')}</b><div class="m6-quien">${esc(s.residenteNombre || '')} · ${casaNom(s.casaId)}</div><div class="sm muted">${esc(p.negocio || p.nombre || '')}${s.cita ? ' · ' + citaL(s) : ''}</div><div style="margin-top:4px">${chip(el, ec)}</div></div></div>`; };
+    const ver = S.asvOf === 'todos' ? cats : [S.asvOf];
+    return `<div class="m6-top"><div><h2>Servicios profesionales</h2><p class="note">Profesionales de confianza ordenados por especialidad.</p></div><button class="m6-mini" onclick="go('proveedores')">${ic('userplus', 14)} Link de registro</button></div>
+      <div class="kpis">${kpi('Profesionales activos', P.length, "")}${kpi('Disponibles ahora', P.filter(p => p.disponible !== false).length, "")}${kpi('Trabajos en curso', g.activas.length, "S.asv='activas';render()")}${kpi('Terminados', g.terminadas.length, "S.asv='terminadas';render()")}</div>
+      ${cats.length > 1 ? `<div class="m6-cats">${[['todos', 'Todos (' + P.length + ')']].concat(cats.map(c => [c, c + ' (' + G[c].length + ')'])).map(([k, l]) => `<button class="${S.asvOf === k ? 'on' : ''}" onclick="S.asvOf='${esc(k).replace(/'/g, '')}';render()">${esc(l)}</button>`).join('')}</div>` : ''}
+      ${P.length && S.asvOf === 'todos' && cats.length > 1 ? `<div class="m6-grid">${cats.map(c => G[c].slice().sort((a, b) => (b.disponible !== false) - (a.disponible !== false) || scoreR('pro', b.id) - scoreR('pro', a.id)).map(p => card(p, true)).join('')).join('')}</div>` : P.length ? ver.map(c => `<h3>${esc(c)} <span class="muted" style="font-weight:600">(${G[c].length})</span></h3><div class="m6-grid">${G[c].slice().sort((a, b) => (b.disponible !== false) - (a.disponible !== false) || scoreR('pro', b.id) - scoreR('pro', a.id)).map(card).join('')}</div>`).join('') : empty('Aún no hay profesionales. Invítalos con el link de registro.')}
+      <h3>Solicitudes de trabajo</h3>${seg('asv', [['activas', `Activas (${g.activas.length})`], ['terminadas', `Terminadas (${g.terminadas.length})`], ['otras', 'Canceladas']])}<div class="m6-sol">${g[S.asv].map(sol).join('')}</div>${g[S.asv].length ? '' : empty('Sin solicitudes')}`;
   }
   
   window.ubicPro = function (id) {
@@ -8844,6 +8852,717 @@ body.gwa-ping .top .badge,body.gwa-ping .top .nb{animation:gwaPing 1.3s ease-out
   st.textContent = `.nr-cta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;margin:4px 0 14px;border-style:dashed!important}
 .nr-cta-ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--fr-verde,#00C27A) 18%,transparent);color:var(--text);flex:none}
 .nr-cta b{display:block;font-size:16px}.nr-cta span span,.nr-cta .grow span{font-size:14px;color:var(--muted)}`;
+  document.head.appendChild(st);
+})();
+
+/* =========================================================
+   MEJORAS DE FUNCIONES (v66)
+   1. Pases: el residente puede EDITAR y CANCELAR un pase que todavía
+      no se usó. Un pase ya usado no se puede cancelar ni editar.
+      "Ya se fue de mi casa": el residente AVISA y portería CONFIRMA la
+      salida en el portón (la salida de la residencial la valida
+      vigilancia, no el residente).
+   2. Nadie puede pedirse a sí mismo: un residente con tienda no puede
+      pedir de su propia tienda ni solicitarse su propio servicio.
+   3. Administración › Tienda: vendedores activos (incluye a los
+      residentes con tienda) y en cada pedido quién lo hizo.
+   4. Academias: el residente paga la mensualidad en línea o adjunta
+      la transferencia, igual que la cuota de mantenimiento; la
+      administración aprueba o rechaza.
+   ========================================================= */
+(function () {
+  const st = document.createElement('style'); st.id = 'gw-mejoras66-css';
+  st.textContent = `
+.m6-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:8px 0 6px}
+.m6-card{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.m6-card .m6-h{display:flex;gap:12px;align-items:center;min-width:0;background:none;border:0;padding:0;text-align:left;color:inherit;font:inherit;cursor:pointer;width:100%}
+.m6-card .m6-h b{display:block;font-size:16px;line-height:1.25;overflow-wrap:anywhere}
+.m6-card .m6-h small{display:block;color:var(--muted);font-size:13px}
+.m6-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.m6-stats span{background:var(--bg);border-radius:12px;padding:6px 4px;text-align:center;font-size:12px;color:var(--muted);line-height:1.2}
+.m6-stats b{display:block;font-size:17px;color:var(--text);font-family:Outfit,Inter,sans-serif}
+.m6-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13px}
+.m6-mini{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:600 13px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.m6-mini:active{transform:scale(.97)}
+.m6-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.m6-top h2{margin:0}
+.m6-top .note{margin:2px 0 0}
+.m6-sol{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0 14px}
+.m6-cats{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px}
+.m6-cats button{height:38px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:600 14px Inter,system-ui,sans-serif;cursor:pointer}
+.m6-cats button.on{background:var(--text);color:var(--card);border-color:var(--text)}
+.m6-quien{font-size:13px;font-weight:600}
+.m6-eye{font:700 12px Inter,system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:-4px}
+@media (max-width:600px){.m6-grid,.m6-sol{grid-template-columns:1fr}}`;
+  document.head.appendChild(st);
+
+  const avisa = (ids, t, c, o) => { try { notificar(ids, t, c, o); } catch (e) { } };
+
+  /* ================= 1. PASES ================= */
+  const usado = p => !!(p && p.ingresos && p.ingresos.length);
+  const avisoSalida = p => { const l = p && ultIng(p); return !!(l && !l.salida && l.avisoSalida); };
+  window.gwAvisoSalida = avisoSalida;
+
+  verPase = function (id, nuevo) {
+    const p = DB.pases.find(x => x.id === id); if (!p) return;
+    const e = estadoPase(p); const cr = usuario(p.creadoPor); const act = p.estado === 'activo' && p.hasta >= ymd(); const u = usado(p);
+    let btns = '';
+    if (dentro(p)) btns += avisoSalida(p)
+      ? `<div class="alert info" style="flex:1 1 100%"><b>Avisaste que ya salió de tu casa</b><p>Portería confirmará su salida cuando pase por el portón.</p></div>`
+      : `<button class="btn ok" onclick="resYaSalio('${p.id}')">${ic('out', 18)} Ya se fue de mi casa</button>`;
+    if (act) btns += `<button class="btn" onclick="compartirPase('${p.id}')">${ic('share', 18)} Compartir</button>`;
+    if (act && !u) btns += `<button class="btn ghost" onclick="editarPase('${p.id}')">${ic('edit', 18)} Editar</button><button class="btn bad" onclick="cancelarPase('${p.id}')">Cancelar pase</button>`;
+    sheet(TIPOS[p.tipo].e + ' ' + esc(p.nombre), `${nuevo ? alertBox('ok', 'Pase creado', 'Compártelo con la persona. Vigilancia lo verá en portería.') : ''}<div class="card" style="text-align:center"><div class="muted sm">PIN de acceso</div><div class="pin" style="font-size:34px">${p.pin}</div>${chip(e.l, e.c)}</div>
+  <div class="kv"><span>Tipo</span><b>${TIPOS[p.tipo].l}</b>${p.detalle ? `<span>Detalle</span><b>${esc(p.detalle)}</b>` : ''}${p.dui ? `<span>DUI</span><b>${esc(p.dui)}</b>` : ''}${p.placa ? `<span>Placa</span><b>${esc(p.placa)}</b>` : ''}<span>Ingresa por</span><b>🚪 ${esc(portonNom(p.porton))}</b><span>Vigencia</span><b>${vigencia(p)}</b>${p.horario ? `<span>Horario</span><b>${esc(p.horario)}</b>` : ''}<span>Creado por</span><b>${esc(cr ? cr.nombre : '')}</b></div>
+  ${p.ingresos.length ? `<h3>Ingresos</h3>${p.ingresos.slice().reverse().slice(0, 10).map(i => `<div class="chk"><span class="grow">${fFecha(i.entrada)}</span><span class="sm muted">${i.salida ? 'salió ' + hora(i.salida) : i.avisoSalida ? 'salió de la casa · falta portón' : 'dentro'}</span></div>`).join('')}` : ''}
+  ${act && u ? '<p class="note">Este pase ya se usó, por eso ya no se puede editar ni cancelar.</p>' : ''}
+  <div class="btns">${btns}</div>`);
+  };
+  window.verPase = verPase;
+
+  const bCancel = cancelarPase;
+  cancelarPase = function (id) { const p = DB.pases.find(x => x.id === id); if (usado(p)) return toast('Este pase ya se usó: no se puede cancelar'); return bCancel.apply(this, arguments); };
+  window.cancelarPase = cancelarPase;
+
+  window.editarPase = function (id) {
+    const p = DB.pases.find(x => x.id === id); if (!p) return; if (usado(p)) return toast('Este pase ya se usó: no se puede editar');
+    const v = k => esc(p[k] || '');
+    const nl = p.tipo === 'correo' ? 'Empresa de paquetería' : p.tipo === 'entrega' ? 'Nombre del repartidor' : p.tipo === 'visita' ? 'Nombre del visitante' : 'Nombre completo';
+    let f = `<label class="f">${nl}<input name="nombre" required value="${v('nombre')}"></label>`;
+    if (p.tipo === 'personal' || p.tipo === 'visita') f += `<div class="two"><label class="f">DUI${p.tipo === 'visita' ? ' (opcional)' : ''}<input name="dui" inputmode="numeric" maxlength="10" autocomplete="off" value="${v('dui')}"></label><label class="f">Placa (opcional)<input name="placa" value="${v('placa')}"></label></div>`;
+    f += `<label class="f">${p.tipo === 'personal' ? 'Oficio' : p.tipo === 'entrega' ? 'Servicio / restaurante' : 'Detalle'}<input name="detalle" value="${v('detalle')}"></label>`;
+    f += p.tipo === 'entrega' ? `<label class="f">Fecha<input name="desde" type="date" value="${p.desde}" required></label>` : `<div class="two"><label class="f">Desde<input name="desde" type="date" value="${p.desde}" required></label><label class="f">Hasta<input name="hasta" type="date" value="${p.hasta}" required></label></div>`;
+    if (p.tipo === 'personal') f += `<label class="f">Horario (opcional)<input name="horario" value="${v('horario')}" placeholder="Lun–Sáb 7:00–16:00"></label>`;
+    sheet('Editar pase', `<form onsubmit="guardarEdPase(event,'${id}')">${f}<p class="note">El PIN no cambia: la persona usa el mismo.</p><button class="btn block">Guardar cambios</button></form>`);
+  };
+  window.guardarEdPase = function (e, id) {
+    e.preventDefault(); const p = DB.pases.find(x => x.id === id); if (!p) return; if (usado(p)) return toast('Este pase ya se usó: no se puede editar');
+    const f = new FormData(e.target); const g = k => String(f.get(k) || '').trim();
+    const n = { nombre: g('nombre') || p.nombre, dui: f.has('dui') ? g('dui') : p.dui, placa: f.has('placa') ? g('placa') : p.placa, detalle: g('detalle'), horario: f.has('horario') ? g('horario') : p.horario, desde: g('desde'), hasta: g('hasta') || g('desde') };
+    if (!duiOk(n.dui)) return toast('DUI incompleto. Formato: 00000000-0');
+    if (n.hasta < n.desde) return toast('La fecha final es anterior a la inicial'); if (n.hasta < ymd()) return toast('El pase ya estaría vencido');
+    if (S.user.rol === 'inquilino' && n.hasta > S.user.hasta) return toast('No puede pasar de tu fecha de vigencia');
+    Object.assign(p, n, { editado: nowISO() }); save(); render(); verPase(id); toast('Pase actualizado · mismo PIN');
+  };
+
+  // El residente AVISA que la visita salió de su casa; portería confirma en el portón
+  resYaSalio = function (id) {
+    const p = DB.pases.find(x => x.id === id); const l = p && ultIng(p); if (!l || l.salida) return;
+    l.avisoSalida = nowISO(); l.avisoPor = S.user.id;
+    avisa(vigilantes(), '🏠 ' + casaNom(p.casaId) + ': ' + p.nombre + ' ya salió de la casa', 'Confirma su salida cuando pase por el portón.', { tab: 'inicio' });
+    save(); closeSheet(); render(); toast('Avisamos a portería. Ellos confirman la salida en el portón');
+  };
+  window.resYaSalio = resYaSalio;
+
+  const bItemVig = paseItemVig;
+  paseItemVig = function (p) { let h = bItemVig.apply(this, arguments); if (avisoSalida(p)) { const i = h.lastIndexOf('</button>'); h = h.slice(0, i).replace(/(<span class="chip[^"]*"[^>]*>[^<]*<\/span>)$/, '') + chip('Salió de la casa', 'warn') + h.slice(i); } return h; };
+  window.paseItemVig = paseItemVig;
+  const bVerVig = verPaseVig;
+  verPaseVig = function (id) {
+    bVerVig.apply(this, arguments); const p = DB.pases.find(x => x.id === id); if (!p || !avisoSalida(p)) return;
+    const l = ultIng(p); const kv = document.querySelector('#ov .card.kv');
+    if (kv) kv.insertAdjacentHTML('beforebegin', alertBox('warn', casaNom(p.casaId) + ' avisa que ya salió de la casa', `Avisó a las ${hora(l.avisoSalida)}. Cuando pase por el portón, toca «Marcar salida».`));
+  };
+  window.verPaseVig = verPaseVig;
+  if (VIEWS.vigilante && VIEWS.vigilante.inicio) {
+    const bvi = VIEWS.vigilante.inicio;
+    VIEWS.vigilante.inicio = function () {
+      let h = bvi.apply(this, arguments);
+      const L = DB.pases.filter(avisoSalida); if (!L.length) return h;
+      const blq = `<h3>Avisos de salida (${L.length})</h3><p class="note" style="margin-top:-6px">La casa avisa que su visita ya salió. Confirma la salida cuando pase por el portón.</p>` + L.map(paseItemVig).join('');
+      const k = h.indexOf('<h3>'); return k >= 0 ? h.slice(0, k) + blq + h.slice(k) : h + blq;
+    };
+  }
+
+  /* ================= 2. NO PEDIRSE A SÍ MISMO ================= */
+  const esMio = vid => !!(S.user && vid && S.user.id === vid);
+  const bAdd = cartAdd;
+  cartAdd = function (pid, d) { const p = prod(pid); if (p && esMio(p.vendedorId)) return toast('Es tu propia tienda: no puedes hacerte pedidos'); return bAdd.apply(this, arguments); };
+  window.cartAdd = cartAdd;
+  const bCard = prodCard;
+  prodCard = function (p) {
+    let h = bCard.apply(this, arguments); if (!esMio(p.vendedorId)) return h;
+    return h.replace(/<button class="btn smb" onclick="cartAdd\('[^']+',1\)">[\s\S]*?<\/button>/, chip('Tu producto', 'info'));
+  };
+  window.prodCard = prodCard;
+  const bTV = vTiendaVendedor;
+  vTiendaVendedor = function (vid) {
+    let h = bTV.apply(this, arguments); if (!esMio(vid)) return h;
+    const k = h.indexOf('</button>'); const nota = alertBox('info', 'Esta es tu tienda', 'Así la ven tus vecinos. No puedes hacer pedidos a tu propia tienda.');
+    return k >= 0 ? h.slice(0, k + 9) + nota + h.slice(k + 9) : nota + h;
+  };
+  window.vTiendaVendedor = vTiendaVendedor;
+  const bEnv = enviarPedido;
+  enviarPedido = function (e) { if (S.cart && esMio(S.cart.v)) { e.preventDefault(); S.cart = null; closeSheet(); render(); return toast('No puedes hacer pedidos a tu propia tienda'); } return bEnv.apply(this, arguments); };
+  window.enviarPedido = enviarPedido;
+
+  if (window.pedirServicio) { const b = window.pedirServicio; window.pedirServicio = function (pid) { if (esMio(pid)) return toast('Es tu propio servicio: no puedes pedírtelo'); return b.apply(this, arguments); }; }
+  if (window.enviarServicio) { const b = window.enviarServicio; window.enviarServicio = function (e, pid) { if (esMio(pid)) { e.preventDefault(); closeSheet(); return toast('Es tu propio servicio: no puedes pedírtelo'); } return b.apply(this, arguments); }; }
+  ['residente', 'inquilino', 'profesional'].forEach(r => {
+    const V = VIEWS[r]; if (!V || !V.pro) return; const b = V.pro;
+    V.pro = function () {
+      let h = b.apply(this, arguments); if (!esMio(S.sub)) return h;
+      h = h.replace(/<button class="btn block big-ok"[^>]*pedirServicio[\s\S]*?<\/button>/, alertBox('info', 'Este es tu perfil público', 'Así te ven tus vecinos. No puedes pedirte un servicio a ti mismo.'));
+      return h.replace(/<button class="btn smb"[^>]*pedirServicio[^>]*>Pedir<\/button>/g, '');
+    };
+  });
+
+  /* ================= 3. ADMINISTRACIÓN · TIENDA ================= */
+  const quienPidio = p => { const u = usuario(p.compradorId); return (u ? u.nombre : 'Residente') + ' · ' + casaNom(p.casaId); };
+  window.admPausarTienda = function (id) {
+    const u = usuario(id); if (!u) return;
+    if (u.rol === 'vendedor') return toggleUser(id);
+    u.vende = !u.vende; if (!u.vende) avisa([u.id], 'Tu tienda fue pausada', 'Comunícate con la administración si tienes dudas.', { tab: 'mas' });
+    save(); render(); toast(u.vende ? 'Tienda activada' : 'Tienda pausada');
+  };
+  function vAdmTienda2() {
+    const P = tiendaDB().pedidos; const mes = periodoActual();
+    const todos = DB.usuarios.filter(u => u.rol === 'vendedor' || ((u.rol === 'residente' || u.rol === 'inquilino') && (u.vende || u.negocio && u.categoria)));
+    const on = u => u.rol === 'vendedor' ? u.activo !== false : (u.activo !== false && !!u.vende);
+    const act = todos.filter(on), off = todos.filter(u => !on(u));
+    S.atp = S.atp || 'curso';
+    const card = v => { const ps = prodsDe(v.id); const ventas = P.filter(p => p.vendedorId === v.id && p.estado === 'entregado').length; const cur = P.filter(p => p.vendedorId === v.id && ACTIVOS_PED.includes(p.estado)).length; const vec = v.rol !== 'vendedor' || v.casaId;
+      return `<div class="m6-card"><button class="m6-h" onclick="S.tv='${v.id}';go('tienda')">${v.logo ? logoImg(v.logo, 48, '50%', 'border:1px solid var(--line);flex:none') : `<span class="av" style="width:48px;height:48px;flex:none">🛍️</span>`}<span class="grow" style="min-width:0"><b>${esc(v.negocio || v.nombre)}</b><small>${esc(v.nombre)} · ${esc(v.categoria || 'Tienda')}</small><span style="display:block;margin-top:5px">${on(v) ? chip('Activa', 'ok') : chip('Pausada', 'mut')}</span></span></button>
+        <div class="m6-stats"><span><b>${ps.filter(p => p.activo).length}</b>productos</span><span><b>${ventas}</b>ventas</span><span><b>${cur}</b>en curso</span></div>
+        <div>${rateLine('tienda', v.id, false)}</div>
+        <div class="m6-foot"><span>${vec ? '🏠 Vecino · ' + (v.casaId ? casaNom(v.casaId) : '') : '🚪 Negocio externo'}</span><button class="m6-mini" onclick="admPausarTienda('${v.id}')">${on(v) ? 'Pausar' : 'Activar'}</button></div></div>`; };
+    const ped = p => { const v = usuario(p.vendedorId); const e = EST_PED[p.estado] || { l: p.estado, c: '' }; return `<button class="item" onclick="verPedido('${p.id}')"><div class="grow"><b>${numPed(p)} · ${esc(v ? v.negocio || v.nombre : '')}</b><div class="m6-quien">Pidió: ${esc(quienPidio(p))}</div><div class="sm muted">${money(p.total)} · ${fFecha(p.fecha)} · ${p.entrega === 'domicilio' ? '🛵 A domicilio' : '🏠 Retiro'}</div></div>${chip(e.l, e.c)}</button>`; };
+    const L = P.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)); const g = { curso: L.filter(p => ACTIVOS_PED.includes(p.estado)), todos: L.slice(0, 30) };
+    return `<div class="m6-top"><div><h2>Tienda</h2><p class="note">Vecinos y negocios que venden a los residentes, y los pedidos que hacen.</p></div><button class="m6-mini" onclick="nuevoVendedor()">${ic('plus', 14)} Vendedor externo</button></div>
+      <div class="kpis">${kpi('Vendedores activos', act.length, '')}${kpi('Pedidos este mes', P.filter(p => p.fecha.slice(0, 7) === mes).length, '')}${kpi('Pedidos en curso', g.curso.length, "S.atp='curso';render()")}${kpi('Entregados este mes', P.filter(p => p.estado === 'entregado' && p.fecha.slice(0, 7) === mes).length, '')}</div>
+      <h3>Vendedores activos (${act.length})</h3>${act.length ? `<div class="m6-grid">${act.map(card).join('')}</div>` : empty('Aún no hay vendedores activos')}
+      ${off.length ? `<h3>Pausados (${off.length})</h3><div class="m6-grid">${off.map(card).join('')}</div>` : ''}
+      <h3>Pedidos</h3>${seg('atp', [['curso', `En curso (${g.curso.length})`], ['todos', 'Últimos 30']])}<div class="m6-sol">${g[S.atp].map(ped).join('')}</div>${g[S.atp].length ? '' : empty('Sin pedidos')}`;
+  }
+  window.vAdmTienda = vAdmTienda2; if (VIEWS.admin) VIEWS.admin.tienda = vAdmTienda2;
+
+  /* ================= 4. ACADEMIAS: PAGO EN LÍNEA ================= */
+  const enRev = x => x.estado === 'revision';
+  const grpDe = x => x.grp || x.id;
+  window.acPagarBloque = function (al) {
+    const a = acad(al.acadId), d = debeAl(al), q = cuotaAl(al); const deb = [...d.mora, ...d.pend]; const cur = periodoActual();
+    const rev = DB.acadPagos.filter(p => p.alumnoId === al.id && enRev(p));
+    let base = deb.length ? deb[deb.length - 1] : (pagadoPer(al.id, cur) ? cur : addMonths(cur, -1));
+    const opts = [...deb]; for (let i = 1; opts.length < deb.length + 2 && i < 6; i++) { const p = addMonths(base, i); if (!pagadoPer(al.id, p) && !opts.includes(p)) opts.push(p); }
+    const insc = !inscPagada(al);
+    if (!(q > 0) && !insc) return '';
+    return `${rev.length ? alertBox('info', 'Pago en revisión', 'La administración está validando tu pago de ' + rev.map(p => p.concepto === 'inscripcion' ? 'inscripción' : perL(p.periodo)).join(', ') + '.') : ''}
+      <form id="acPay" class="card" oninput="acTot(this)" onsubmit="return false" data-q="${q}" data-i="${+a.inscripcion || 0}"><div class="muted sm" style="margin-bottom:6px">Selecciona lo que vas a pagar</div>
+      ${opts.map(p => `<label class="chk"><input type="checkbox" name="per" value="${p}" ${deb.includes(p) ? 'checked' : ''}><span class="grow">${perL(p)} ${d.mora.includes(p) ? chip('En mora', 'bad') : d.pend.includes(p) ? chip('Pendiente', 'warn') : chip('Adelantado', 'info')}</span><b>${money(q)}</b></label>`).join('')}
+      ${insc ? `<label class="chk"><input type="checkbox" name="insc" checked><span class="grow">Inscripción</span><b>${money(a.inscripcion)}</b></label>` : ''}
+      <div class="row" style="margin-top:8px"><span class="grow">Total</span><b id="acTotal" style="font-size:21px">${money(deb.length * q + (insc ? +a.inscripcion || 0 : 0))}</b></div>
+      <div class="btns"><button type="button" class="btn" onclick="acPagarLink('${al.id}')">Pagar en línea</button><button type="button" class="btn sec" onclick="acPagarTransf('${al.id}')">Ya transferí · adjuntar</button></div></form>`;
+  };
+  window.acTot = function (f) { const q = +f.dataset.q || 0, i = +f.dataset.i || 0; const n = f.querySelectorAll('[name=per]:checked').length; const ins = f.querySelector('[name=insc]'); const t = n * q + (ins && ins.checked ? i : 0); const el = document.getElementById('acTotal'); if (el) el.textContent = money(t); };
+  function acSel(id) {
+    const f = document.getElementById('acPay'); const al = alumno(id); const a = acad(al.acadId); const q = cuotaAl(al);
+    const pers = f ? [...f.querySelectorAll('[name=per]:checked')].map(x => x.value) : []; const insc = !!(f && f.querySelector('[name=insc]:checked'));
+    const total = pers.length * q + (insc ? +a.inscripcion || 0 : 0);
+    const conc = a.nombre + ': ' + [pers.length ? 'mensualidad ' + pers.map(perL).join(', ') : '', insc ? 'inscripción' : ''].filter(Boolean).join(' + ');
+    return { al, a, q, pers, insc, total, conc };
+  }
+  window.acPagarLink = function (id) {
+    const x = acSel(id); if (!x.pers.length && !x.insc) return toast('Elige al menos un mes');
+    const ref = 'AC' + casa(x.al.casaId).numero + '-' + String(Date.now()).slice(-6);
+    S.acLink = { id, pers: x.pers, insc: x.insc, total: x.total, conc: x.conc, ref };
+    sheet('Link de pago', `<div class="card" style="border:2px solid var(--pri)"><div class="muted sm" style="margin-bottom:8px">Detalle del cobro</div><div class="kv"><span>Academia</span><b>${esc(x.a.nombre)}</b><span>Alumno</span><b>${esc(x.al.nombre)}</b><span>Concepto</span><b>${esc(x.conc)}</b><span>Monto</span><b style="font-size:19px">${money(x.total)}</b><span>Referencia</span><b>${ref}</b></div></div>
+      <ol class="note" style="padding-left:18px"><li>Toca <b>Ir a pagar</b> y completa el pago en la pasarela.</li><li>Regresa y toca <b>Ya pagué</b>: la app genera la captura con este detalle y la envía a la administración.</li></ol>
+      <button class="btn block" onclick="acAbrirLink()">Ir a pagar</button><button class="btn sec block" onclick="acConfirmarLink()">Ya pagué · adjuntar captura</button>`);
+  };
+  window.acAbrirLink = function () {
+    const l = DB.config && DB.config.linkPago, L = S.acLink; if (!L) return; if (!l) return toast('Aún no hay pasarela configurada. Toca “Ya pagué” para adjuntar la captura.');
+    try { const u = new URL(l); u.searchParams.set('monto', L.total.toFixed(2)); u.searchParams.set('referencia', L.ref); u.searchParams.set('concepto', L.conc); window.open(u.toString(), '_blank'); } catch (e) { window.open(l, '_blank'); }
+  };
+  function acRegistrar(id, pers, insc, extra) {
+    const al = alumno(id), a = acad(al.acadId), q = cuotaAl(al); const grp = uid();
+    const base = Object.assign({ alumnoId: id, acadId: a.id, casaId: al.casaId, fecha: ymd(), por: S.user.id, grp, estado: 'revision' }, extra);
+    const L = []; pers.forEach(p => L.push(Object.assign({ id: uid(), periodo: p, concepto: 'mensualidad', monto: q }, base)));
+    if (insc) L.push(Object.assign({ id: uid(), periodo: ymd().slice(0, 7), concepto: 'inscripcion', monto: +a.inscripcion || 0 }, base));
+    L.forEach((x, i) => { if (i) delete x.comprobante; DB.acadPagos.push(x); });
+    const tot = sum(L, x => +x.monto || 0);
+    avisa(admins(), '💳 Pago de academia por validar', `${a.nombre} · ${al.nombre} (${casaNom(al.casaId)}) · ${money(tot)}`, { tab: 'academias' });
+    save(); render(); return { al, a, tot };
+  }
+  window.acConfirmarLink = function () {
+    const L = S.acLink; if (!L) return; const al = alumno(L.id);
+    const img = genImg({ titulo: 'Pago en línea · Academia', sub: DB.residencial.nombre, filas: [['Alumno', al.nombre], ['Casa', casaNom(al.casaId)], ['Concepto', L.conc], ['Monto', money(L.total)], ['Referencia', L.ref], ['Fecha', fFecha(nowISO())]], sello: 'PAGADO', color: '#0B1F4D' });
+    acRegistrar(L.id, L.pers, L.insc, { metodo: 'link', ref: L.ref, comprobante: { tipo: 'img', nombre: 'captura-' + L.ref + '.jpg', data: img } }); S.acLink = null;
+    sheet('Pago enviado a validación', `<img class="thumb" src="${img}" alt="Captura del pago"><p>La administración revisará tu pago y te avisará cuando lo apruebe.</p><button class="btn block" onclick="closeSheet()">Listo</button>`);
+  };
+  window.acPagarTransf = function (id) {
+    const x = acSel(id); if (!x.pers.length && !x.insc) return toast('Elige al menos un mes');
+    S.acTr = { id, pers: x.pers, insc: x.insc };
+    sheet('Adjuntar transferencia', `<div class="card"><div class="kv"><span>Concepto</span><b>${esc(x.conc)}</b><span>Total</span><b>${money(x.total)}</b></div></div><form onsubmit="acEnviarTransf(event)"><label class="f">Foto o PDF del comprobante<input name="arch" type="file" accept="image/*,application/pdf" required></label><div class="two"><label class="f">Banco de origen<input name="banco"></label><label class="f">N° de referencia<input name="ref" required></label></div><label class="f">Fecha de la transferencia<input name="fecha" type="date" value="${ymd()}" required></label><button class="btn block">Enviar comprobante</button></form>`);
+  };
+  window.acEnviarTransf = async function (e) {
+    e.preventDefault(); const T = S.acTr; if (!T) return; const f = new FormData(e.target); let comp;
+    try { comp = await leerArchivo(f.get('arch')); } catch (x) { return toast('Formato no válido. Usa foto o PDF'); } if (!comp) return toast('Adjunta el comprobante');
+    acRegistrar(T.id, T.pers, T.insc, { metodo: 'transferencia', ref: String(f.get('ref') || '').trim(), banco: String(f.get('banco') || '').trim(), fechaTransf: f.get('fecha'), comprobante: comp }); S.acTr = null;
+    closeSheet(); toast('Comprobante enviado para validación');
+  };
+  window.acVerComp = function (grp) { const p = DB.acadPagos.find(x => grpDe(x) === grp && x.comprobante); if (!p) return toast('Sin comprobante'); const c = p.comprobante; sheet('Comprobante', c.tipo === 'pdf' || /^data:application\/pdf/.test(c.data || '') ? `<a class="btn block" href="${c.data}" download="${esc(c.nombre || 'comprobante.pdf')}">Descargar PDF</a>` : `<img class="thumb" src="${c.data}" alt="Comprobante">`); };
+  window.acAprobar = function (grp) {
+    const L = DB.acadPagos.filter(x => grpDe(x) === grp); if (!L.length) return; L.forEach(x => { x.estado = 'aprobado'; x.aprobadoPor = S.user.id; x.fechaAprob = nowISO(); });
+    const al = alumno(L[0].alumnoId), a = acad(L[0].acadId);
+    if (al && al.tipo === 'res') avisa(usuariosCasa(al.casaId), '✅ Pago aprobado · ' + a.nombre, `${al.nombre} · ${money(sum(L, x => +x.monto || 0))}`, { tab: 'academias' });
+    save(); render(); toast('Pago aprobado'); if (document.getElementById('ov')) setTimeout(() => verAlumno(L[0].alumnoId), 30);
+  };
+  window.acRechazar = function (grp) {
+    const L = DB.acadPagos.filter(x => grpDe(x) === grp); if (!L.length) return; L.forEach(x => { x.estado = 'rechazado'; x.rechazadoPor = S.user.id; });
+    const al = alumno(L[0].alumnoId), a = acad(L[0].acadId);
+    if (al && al.tipo === 'res') avisa(usuariosCasa(al.casaId), '⚠️ Pago no aprobado · ' + a.nombre, `${al.nombre}: revisa el comprobante y vuelve a enviarlo.`, { tab: 'academias' });
+    save(); render(); toast('Pago rechazado'); if (document.getElementById('ov')) setTimeout(() => verAlumno(L[0].alumnoId), 30);
+  };
+  // Estado del alumno: si hay un pago en revisión se indica
+  const bEst = estadoPagoAl;
+  estadoPagoAl = function (al) { const e = bEst.apply(this, arguments); if (e.c === 'bad') return e; if (al && DB.acadPagos.some(p => p.alumnoId === al.id && enRev(p))) return { l: 'Pago en revisión', c: 'info', n: 0 }; return e; };
+  window.estadoPagoAl = estadoPagoAl;
+  // Administración: pagos por validar arriba de Academias
+  ['admin'].forEach(r => {
+    const V = VIEWS[r]; if (!V || !V.academias) return; const b = V.academias;
+    V.academias = function () {
+      let h = b.apply(this, arguments); const G = {}; DB.acadPagos.filter(enRev).forEach(p => (G[grpDe(p)] = G[grpDe(p)] || []).push(p));
+      const gs = Object.values(G); if (!gs.length) return h;
+      const blq = `<h3>Pagos por validar (${gs.length})</h3>` + gs.map(L => { const al = alumno(L[0].alumnoId) || {}; const a = acad(L[0].acadId) || {}; const g = grpDe(L[0]); return `<div class="card" style="padding:12px 14px"><div class="row" style="gap:12px"><span class="mic c-sky">${ic('card', 19)}</span><div class="grow"><b>${esc(al.nombre || '')} · ${money(sum(L, x => +x.monto || 0))}</b><div class="sm muted">${esc(a.nombre || '')} · ${casaNom(al.casaId)} · ${L.map(p => p.concepto === 'inscripcion' ? 'Inscripción' : perL(p.periodo)).join(', ')} · ${METODO_AC[L[0].metodo] || L[0].metodo}${L[0].ref ? ' · Ref. ' + esc(L[0].ref) : ''}</div></div></div><div class="btns"><button class="btn ghost smb" onclick="acVerComp('${g}')">Ver comprobante</button><button class="btn ok smb" onclick="acAprobar('${g}')">Aprobar</button><button class="btn bad smb" onclick="acRechazar('${g}')">Rechazar</button></div></div>`; }).join('');
+      const k = h.indexOf('<h3>'); return k >= 0 ? h.slice(0, k) + blq + h.slice(k) : h + blq;
+    };
+  });
+})();
+
+/* =========================================================
+   TABLEROS DE INICIO (v67) · Administración y Residente
+   Reordena el inicio para ver el panorama completo:
+   - Computadora: cuadrícula de 12 columnas. Contenido principal a la
+     izquierda (8) y columna de "Requiere atención" a la derecha (4).
+   - Teléfono: una sola columna, lo urgente primero.
+   Administración: indicadores en una fila, cuadro por casa (residentes,
+   estado de pago, visitas, pases, tienda, servicio, reclamos),
+   requiere atención, votaciones, eventos y mora.
+   Residente: resumen "Mi casa hoy", accesos directos que el residente
+   personaliza, visitas de hoy y, a la derecha, recordatorios y avisos.
+   Nada se pierde: los bloques que ya existían se reacomodan.
+   ========================================================= */
+(function () {
+  const st = document.createElement('style'); st.id = 'gw-dash-css';
+  st.textContent = `
+.db{display:flex;flex-direction:column;gap:16px}
+.db h3{margin:4px 0 8px}
+.db-g{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.db-col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.db-col>.alert,.db-col>.item,.db-col>.card{margin:0}
+.db-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:6px 0 2px}
+.db-sec h3{margin:0}
+.db-link{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:600 13px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.db-link:active{transform:scale(.97)}
+.db-panel{background:var(--card);border:1.5px solid var(--line);border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.db-panel>h3{margin:0 0 2px;font-size:17px}
+.db-panel .alert{margin:0;padding:10px 12px;border-radius:16px}
+.db-panel .alert .al-tx b,.db-panel .alert b{font-size:14.5px}
+.db-panel .alert p,.db-panel .alert .al-tx span,.db-panel .alert small{font-size:13px}
+.db-panel .item{margin:0;padding:10px 12px;border-radius:16px}
+.db-panel .card{margin:0}
+.db-ok{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);padding:6px 2px}
+.db-filt{display:flex;gap:6px;flex-wrap:wrap}
+.db-filt button{height:34px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
+.db-filt button.on{background:var(--text);color:var(--card);border-color:var(--text)}
+.db-casas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.db-casa{background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;color:var(--text);font:inherit;cursor:pointer;min-width:0;transition:transform 160ms cubic-bezier(.23,1,.32,1),border-color 160ms ease}
+.db-casa:active{transform:scale(.98)}
+@media (hover:hover) and (pointer:fine){.db-casa:hover{border-color:var(--fr-verde,#00C27A)}}
+.db-casa .dc-h{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;flex-wrap:wrap}
+.db-casa .dc-n{font:800 18px Outfit,Inter,sans-serif;line-height:1.1;white-space:nowrap}
+.db-casa .dc-p{font-size:12px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db-est{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:12px;font-size:12px;font-weight:800;white-space:nowrap;flex:none}
+.db-est.ok{background:var(--okbg);color:var(--ok)}.db-est.bad{background:var(--badbg);color:var(--bad)}.db-est.warn{background:var(--warnbg);color:var(--warn)}.db-est.info{background:var(--infobg);color:var(--info)}.db-est.mut{background:var(--line);color:var(--muted)}
+.db-avs{display:flex;align-items:center;min-height:30px}
+.db-av{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:800 11px Inter,system-ui,sans-serif;color:#0B1F4D;border:2px solid var(--card);flex:none;overflow:hidden}
+.db-av+.db-av{margin-left:-8px}
+.db-av img,.db-av svg{width:100%;height:100%;display:block}
+.db-avs .dc-nm{margin-left:8px;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.db-cnt{display:flex;flex-wrap:wrap;gap:5px}
+.db-cnt span{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 8px;border-radius:13px;font-size:12px;font-weight:700;color:var(--text);background:var(--bg)}
+.db-cnt span svg{width:14px;height:14px}
+.db-cnt .vac{background:transparent;color:var(--muted);font-weight:600;padding:0}
+.db-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.db-tile{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:4px;text-align:left;color:var(--text);font:inherit;cursor:pointer;min-width:0}
+.db-tile:active{transform:scale(.98)}
+.db-tile .dt-i{width:38px;height:38px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#0B1F4D;margin-bottom:4px}
+.db-tile .dt-l{font-size:13.5px;font-weight:700;color:var(--muted)}
+.db-tile .dt-v{font:800 24px Outfit,Inter,sans-serif;line-height:1.1}
+.db-tile .dt-s{font-size:12.5px;color:var(--muted)}
+.db-casa-mia{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.db-sc-edit{margin-left:auto}
+.db .ez-mini{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.db .ez-mini .ez-m{margin:0}
+.db-sc-l{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.db-sc-l label{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 12px;border:1.5px solid var(--line);border-radius:16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--card)}
+.db-sc-l label:has(input:checked){border-color:var(--fr-verde,#00C27A);background:color-mix(in srgb,var(--fr-verde,#00C27A) 10%,var(--card))}
+.db-sc-l input{width:22px;height:22px;flex:none;accent-color:#00C27A}
+.db-sc-l .mic{width:32px;height:32px;border-radius:11px;flex:none}
+.db-sc-l .mic svg{width:18px;height:18px}
+@media (min-width:700px){.db-casas{grid-template-columns:repeat(3,minmax(0,1fr))}.db-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:1024px){
+  .wrap:has(.db){max-width:1280px!important}
+  .db-g{grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}
+  .db-main{grid-column:1 / span 8;grid-row:1}.db-side{grid-column:9 / span 4;grid-row:1}
+  .db .kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:12px!important}
+  .db .kpis .kpi{min-height:0}
+  .db-casas{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .db-res .ez-big{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  .db-res .ez-big>*{min-height:140px}
+  .db .ez-mini{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .db .hero5,.db .r7-hero{margin-bottom:0}
+}
+@media (max-width:1023px){.db-side{display:contents}.db-g .db-atn{order:-1}.db-g .db-rest{order:2}}
+@media (prefers-reduced-motion:reduce){.db-casa,.db-tile{transition:none}}`;
+  document.head.appendChild(st);
+
+  const parse = h => { const t = document.createElement('template'); t.innerHTML = h; return [...t.content.childNodes].filter(n => n.nodeType === 1 || (n.nodeType === 3 && n.textContent.trim())); };
+  const oh = n => n.nodeType === 1 ? n.outerHTML : esc(n.textContent);
+  const onc = n => (n.getAttribute && n.getAttribute('onclick')) || '';
+  const COL = ['#D6F5E8', '#FFF0C2', '#DDE6FF', '#FFE0D8', '#EDE3FF', '#D9F3F8'];
+  const hashN = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+  const avatar = u => { const src = u.avatar && (u.avatar.data || u.avatar); if (typeof src === 'string' && /^data:|^https?:/.test(src)) return `<span class="db-av"><img src="${src}" alt=""></span>`; if (typeof window.gwAvatarSVG === 'function' && u.avatarId != null) return `<span class="db-av">${window.gwAvatarSVG(u.avatarId)}</span>`; return `<span class="db-av" style="background:${COL[hashN(u.id) % COL.length]}">${esc(iniciales(u.nombre || '?'))}</span>`; };
+  window.gwAvatar = avatar;
+  const ACT_PED = typeof ACTIVOS_PED !== 'undefined' ? ACTIVOS_PED : ['nuevo', 'aceptado', 'listo', 'en_camino'];
+  const SOL_ACT = ['solicitado', 'aceptado', 'confirmado', 'en_camino', 'en_proceso'];
+
+  /* ================= ADMINISTRACIÓN ================= */
+  function infoCasa(c) {
+    const hoy = ymd();
+    const gente = DB.usuarios.filter(u => u.casaId === c.id && u.activo !== false && ['residente', 'inquilino'].includes(u.rol));
+    let mora = []; try { mora = moraCasa(c.id) || []; } catch (e) { }
+    const cs = (typeof cuotasCasa === 'function' ? cuotasCasa(c.id) : DB.cuotas.filter(x => x.casaId === c.id));
+    const pend = cs.filter(x => x.estado === 'pendiente'); const rev = cs.filter(x => x.estado === 'revision');
+    let est;
+    if (!c.duenoId && !gente.length) est = ['Sin registrar', 'mut'];
+    else if (mora.length) { let t = 0; try { t = sum(mora, montoCuota); } catch (e) { } est = ['Debe ' + money(t), 'bad']; }
+    else if (rev.length) est = ['Pago en revisión', 'info'];
+    else if (pend.length) est = ['Cuota pendiente', 'warn'];
+    else est = ['Al día', 'ok'];
+    const ps = DB.pases.filter(p => p.casaId === c.id);
+    const vis = ps.filter(p => vigenteHoy(p) || dentro(p)).length; const den = ps.filter(dentro).length;
+    const pases = ps.filter(p => p.estado === 'activo' && p.hasta >= hoy).length;
+    const tienda = gente.filter(u => u.vende).length; const serv = gente.filter(u => u.ofrece).length;
+    const rec = (DB.reclamos || []).filter(r => r.casaId === c.id && r.estado !== 'resuelto').length;
+    return { gente, est, vis, den, pases, tienda, serv, rec, mora: mora.length, alDia: est[1] === 'ok' };
+  }
+  function casaCard(c, I) {
+    const cnt = [];
+    if (I.vis) cnt.push(`<span title="Visitas hoy">${ic('users', 14)}${I.vis}${I.den ? ' · ' + I.den + ' adentro' : ''}</span>`);
+    if (I.pases) cnt.push(`<span title="Pases activos">${ic('ticket', 14)}${I.pases} pase${I.pases > 1 ? 's' : ''}</span>`);
+    if (I.tienda) cnt.push(`<span title="Tienda">${ic('store', 14)}Tienda</span>`);
+    if (I.serv) cnt.push(`<span title="Servicio">${ic('tool', 14)}Servicio</span>`);
+    if (I.rec) cnt.push(`<span title="Reclamos abiertos" style="background:var(--badbg);color:var(--bad)">${ic('alert', 14)}${I.rec}</span>`);
+    const nom = I.gente.length ? I.gente.map(u => String(u.nombre || '').split(' ')[0]).slice(0, 3).join(', ') : (c.duenoId ? esc(duenoNom(c.id)) : 'Sin residentes');
+    return `<button class="db-casa" onclick="go('casa','${c.id}')"><div class="dc-h"><div style="min-width:0"><div class="dc-n">${casaNom(c.id)}</div><div class="dc-p">${esc(c.pasaje || '')}</div></div><span class="db-est ${I.est[1]}">${esc(I.est[0])}</span></div>
+      <div class="db-avs">${I.gente.slice(0, 4).map(avatar).join('')}<span class="dc-nm">${esc(nom)}</span></div>
+      <div class="db-cnt">${cnt.join('') || '<span class="vac">Sin actividad hoy</span>'}</div></button>`;
+  }
+  function bloqueCasas() {
+    S.dbf = S.dbf || 'todas';
+    const L = DB.casas.slice().sort((a, b) => String(a.numero).localeCompare(String(b.numero), 'es', { numeric: true })).map(c => ({ c, I: infoCasa(c) }));
+    const F = { todas: L, saldo: L.filter(x => ['bad', 'warn', 'info'].includes(x.I.est[1])), aldia: L.filter(x => x.I.alDia), hoy: L.filter(x => x.I.vis || x.I.pases), negocio: L.filter(x => x.I.tienda || x.I.serv) };
+    const ver = F[S.dbf] || L; const MAX = 24;
+    const f = [['todas', 'Todas', L.length], ['saldo', 'Con saldo', F.saldo.length], ['aldia', 'Al día', F.aldia.length], ['hoy', 'Con visitas', F.hoy.length], ['negocio', 'Con negocio', F.negocio.length]];
+    return `<div class="db-sec"><h3>Casas</h3><button class="db-link" onclick="go('casas')">Ver lista completa</button></div>
+      <div class="db-filt">${f.map(([k, l, n]) => `<button class="${S.dbf === k ? 'on' : ''}" onclick="S.dbf='${k}';render()">${l} · ${n}</button>`).join('')}</div>
+      <div class="db-casas">${ver.slice(0, MAX).map(x => casaCard(x.c, x.I)).join('') || empty('Ninguna casa en este filtro')}</div>
+      ${ver.length > MAX ? `<button class="btn ghost block" onclick="go('casas')">Ver las ${ver.length} casas</button>` : ''}`;
+  }
+  const panel = (t, body, cls) => `<section class="db-panel ${cls || ''}"><h3>${t}</h3>${body}</section>`;
+
+  if (VIEWS.admin && VIEWS.admin.inicio) {
+    const b = VIEWS.admin.inicio;
+    VIEWS.admin.inicio = function () {
+      const h = b.apply(this, arguments);
+      try {
+        const N = parse(h); let hero = '', kpis = '', chart = '';
+        const atn = [], vot = [], evs = [], mora = [], otros = [];
+        for (let i = 0; i < N.length; i++) {
+          const n = N[i]; const cl = n.classList || { contains: () => false }; const o = onc(n);
+          if (cl.contains('hero5') || (n.tagName === 'SECTION' && !hero)) hero = oh(n);
+          else if (cl.contains('kpis')) kpis = oh(n);
+          else if (n.tagName === 'H3') { const nx = N[i + 1]; if (nx && nx.querySelector && nx.querySelector('.bars')) { chart = `<section class="db-panel"><h3>${esc(n.textContent)}</h3>${nx.innerHTML}</section>`; i++; } }
+          else if (cl.contains('alert') || cl.contains('cc-alerta')) atn.push(oh(n));
+          else if (/go\('votacion'/.test(o)) vot.push(oh(n));
+          else if (/go\('evento'/.test(o)) evs.push(oh(n));
+          else if (/go\('casa'/.test(o)) mora.push(oh(n));
+          else if (n.tagName === 'BUTTON' && /moraRow|pagos/.test(o)) mora.push(oh(n));
+          else otros.push(oh(n));
+        }
+        const atnB = panel(`Requiere atención${atn.length ? ' (' + atn.length + ')' : ''}`, atn.join('') || `<div class="db-ok">${ic('check', 18)} Todo en orden por ahora</div>`, 'db-atn');
+        const rest = (vot.length ? panel('Votaciones abiertas', vot.join('')) : '') + (evs.length ? panel('Próximos eventos', evs.join('')) : '')
+          + panel('Casas en mora', (mora.slice(0, 5).join('') || `<div class="db-ok">${ic('check', 18)} Ninguna casa en mora</div>`) + (mora.length > 5 ? `<button class="db-link" onclick="S.pseg='mora';go('pagos')">Ver todas (${mora.length})</button>` : ''))
+          + otros.join('');
+        return `<div class="db db-adm">${hero}${kpis}<div class="db-g"><div class="db-col db-side">${atnB}<div class="db-col db-rest">${rest}</div></div><div class="db-col db-main">${bloqueCasas()}${chart}</div></div></div>`;
+      } catch (e) { console.warn('tablero admin', e); return h; }
+    };
+  }
+
+  /* ================= RESIDENTE / INQUILINO ================= */
+  const scKey = () => 'gw_sc_' + (S.user && S.user.id);
+  function scGuardados() { const u = S.user || {}; if (Array.isArray(u.accesos)) return u.accesos; try { const v = JSON.parse(localStorage.getItem(scKey()) || 'null'); if (Array.isArray(v)) return v; } catch (e) { } return null; }
+  window.dbSCPersonalizar = function () {
+    const C = window.__dbCatalogo || []; const sel = scGuardados() || C.filter(x => x.big).map(x => x.k);
+    sheet('Mis accesos directos', `<p class="note" style="margin-top:0">Elige los botones grandes que quieres ver en tu inicio (hasta 8). Los demás quedan en "Más cosas".</p>
+      <form onsubmit="dbSCGuardar(event)"><div class="db-sc-l">${C.map((x, i) => `<label><input type="checkbox" name="k" value="${i}" ${sel.includes(x.k) ? 'checked' : ''}><span class="mic ${x.col}">${x.icon}</span><span>${esc(x.l)}</span></label>`).join('')}</div>
+      <button class="btn block big-ok" style="margin-top:14px">Guardar mis accesos</button><button type="button" class="btn ghost block" onclick="dbSCReset()">Volver a los de siempre</button></form>`);
+  };
+  window.dbSCGuardar = function (e) {
+    e.preventDefault(); const C = window.__dbCatalogo || []; const ks = [...e.target.querySelectorAll('[name=k]:checked')].map(x => C[+x.value] && C[+x.value].k).filter(Boolean);
+    if (!ks.length) return toast('Elige al menos uno'); if (ks.length > 8) return toast('Máximo 8 accesos');
+    try { localStorage.setItem(scKey(), JSON.stringify(ks)); } catch (x) { } if (S.user) { S.user.accesos = ks; try { save(); } catch (x) { } }
+    closeSheet(); render(); toast('Listo: tus accesos quedaron guardados');
+  };
+  window.dbSCReset = function () { try { localStorage.removeItem(scKey()); } catch (x) { } if (S.user) { delete S.user.accesos; try { save(); } catch (x) { } } closeSheet(); render(); };
+
+  function tilesRes() {
+    const u = S.user, cid = u.casaId, hoy = ymd(); const ps = DB.pases.filter(p => p.casaId === cid);
+    const vis = ps.filter(p => vigenteHoy(p) || dentro(p)); const den = ps.filter(dentro).length;
+    const act = ps.filter(p => p.estado === 'activo' && p.hasta >= hoy).length;
+    const T = [[`go('accesos')`, 'users', '#DDE6FF', 'Visitas hoy', vis.length, den ? den + ' adentro ahora' : 'Nadie adentro']];
+    T.push([`go('accesos')`, 'ticket', '#FFF0C2', 'Pases activos', act, act ? 'Toca para verlos' : 'Crea uno para tu visita']);
+    let rs = 0; try { rs = (typeof reservas === 'function' ? reservas() : []).filter(r => r.casaId === cid && r.fecha >= hoy && r.estado !== 'rechazada' && r.estado !== 'cancelada').length; } catch (e) { }
+    const nl = (DB.notifs || []).filter(n => n.userId === u.id && !n.leida).length;
+    if (u.vende) { const n = tiendaDB().pedidos.filter(p => p.vendedorId === u.id && ACT_PED.includes(p.estado)).length; T.push([`go('pedidos')`, 'store', '#D6F5E8', 'Mi tienda', n, n ? 'pedido(s) por atender' : 'Sin pedidos pendientes']); }
+    else if (u.ofrece) { const n = (DB.servSol || []).filter(s => s.proId === u.id && SOL_ACT.includes(s.estado)).length; T.push([`go('solicitudes')`, 'tool', '#D6F5E8', 'Mi servicio', n, n ? 'trabajo(s) activos' : 'Sin solicitudes']); }
+    else T.push([`go('reservas')`, 'key', '#D6F5E8', 'Mis reservas', rs, rs ? 'próxima(s)' : 'Reserva un área']);
+    T.push([`go('avisos')`, 'bell', '#FFE0D8', 'Sin leer', nl, nl ? 'aviso(s) nuevos' : 'Estás al día']);
+    return `<div class="db-tiles">${T.map(([o, i, c, l, v, s]) => `<button class="db-tile" onclick="${o}"><span class="dt-i" style="background:${c}">${ic(i, 20)}</span><span class="dt-l">${l}</span><span class="dt-v">${v}</span><span class="dt-s">${s}</span></button>`).join('')}</div>`;
+  }
+  function miCasaLinea() {
+    const g = DB.usuarios.filter(x => x.casaId === S.user.casaId && x.activo !== false && ['residente', 'inquilino'].includes(x.rol));
+    if (g.length < 2) return '';
+    return `<div class="db-casa-mia"><span>En mi casa:</span><span class="db-avs">${g.slice(0, 5).map(avatar).join('')}</span><span>${esc(g.map(x => String(x.nombre).split(' ')[0]).join(', '))}</span></div>`;
+  }
+  function wrapRes(h) {
+    const N = parse(h); if (N.length === 1 && N[0].classList && N[0].classList.contains('r7')) return wrapRes(N[0].innerHTML);
+    let hero = '', big = null, mini = null, bars = '', q = '';
+    const urg = [], alr = [], side = [], vis = [], rest = []; let modo = '';
+    for (let i = 0; i < N.length; i++) {
+      const n = N[i]; const cl = n.classList || { contains: () => false }; const tx = (n.textContent || '').trim();
+      if (cl.contains('r7-hero') || cl.contains('hero5')) { hero = oh(n); continue; }
+      if (cl.contains('ez-big')) { big = n; continue; }
+      if (cl.contains('ez-mini')) { mini = n; continue; }
+      if (cl.contains('ez-bars')) { bars = oh(n); continue; }
+      if (cl.contains('r7-q')) { continue; }
+      if (cl.contains('ez-h')) { continue; }
+      if (n.tagName === 'H3') { modo = /portería/i.test(tx) ? 'urg' : /visitas/i.test(tx) ? 'vis' : /avisos/i.test(tx) ? 'av' : 'otro'; if (modo === 'av') side.push(`<h3 style="margin:6px 0 0">${esc(tx)}</h3>`); if (modo === 'otro') rest.push(oh(n)); continue; }
+      if (cl.contains('cc-alerta') || cl.contains('alert')) { alr.push(oh(n)); continue; }
+      if (cl.contains('rec') || cl.contains('votcta')) { side.push(oh(n)); continue; }
+      if (modo === 'urg') urg.push(oh(n)); else if (modo === 'vis') vis.push(oh(n)); else if (modo === 'av') side.push(oh(n)); else rest.push(oh(n));
+    }
+    // Catálogo de accesos (botones grandes + "más cosas")
+    const C = [];
+    if (big) [...big.children].forEach(el => { const k = onc(el) || el.getAttribute('href') || ''; const ti = el.querySelector('.r7-ti'); C.push({ k, l: (el.querySelector('b') || el).textContent.trim(), html: el.outerHTML, big: true, icon: ti ? ti.innerHTML : '', col: [...el.classList].find(c => /^c-/.test(c)) || 'c-teal' }); });
+    if (mini) [...mini.children].forEach(el => { const k = onc(el); if (!k || C.some(x => x.k === k)) return; const m = el.querySelector('.mic'); const col = m ? [...m.classList].find(c => /^c-/.test(c)) || 'c-teal' : 'c-teal'; const l = (el.querySelector('b') || el).textContent.trim(); const icon = m ? m.innerHTML : '';
+      C.push({ k, l, icon, col, big: false, html: `<button class="r7-t ${col} ez-t" onclick="${esc(k)}"><span class="r7-ti">${icon}</span><span><b>${esc(l)}</b></span></button>`, mini: el.outerHTML }); });
+    window.__dbCatalogo = C;
+    const sel = scGuardados(); const elegidos = sel ? sel.map(k => C.find(x => x.k === k)).filter(Boolean) : C.filter(x => x.big);
+    const resto = C.filter(x => !elegidos.includes(x)).map(x => x.mini || `<button class="ez-m" onclick="${esc(x.k)}"><span class="mic ${x.col}">${x.icon}</span><span><b>${esc(x.l)}</b></span><span class="ez-ch">${ic('chev', 18)}</span></button>`);
+    const acc = C.length ? `<div class="db-sec"><h3>¿Qué necesitas?</h3><button class="db-link db-sc-edit" onclick="dbSCPersonalizar()">${ic('edit', 14)} Personalizar</button></div><div class="ez-big">${elegidos.map(x => x.html).join('')}</div>` : '';
+    const main = acc + bars + (resto.length ? `<h3 class="ez-h" style="margin-top:6px">Más cosas</h3><div class="ez-mini">${resto.join('')}</div>` : '')
+      + (vis.length ? `<div class="db-sec"><h3>Visitas de hoy (${vis.length})</h3><button class="db-link" onclick="go('accesos')">Todos mis pases</button></div><div class="db-vis">${vis.join('')}</div>` : '') + rest.join('');
+    const urgB = (urg.length ? `<section class="db-panel db-atn" style="border-color:var(--fr-sol,#FFC53D)"><h3>Te esperan en portería</h3>${urg.join('')}</section>` : '') + (alr.length ? `<section class="db-panel db-atn"><h3>Pendientes para ti</h3>${alr.join('')}</section>` : '');
+    return `<div class="db db-res r7">${hero}${urgB}<div class="db-sec"><h3>Mi casa hoy</h3>${miCasaLinea()}</div>${tilesRes()}<div class="db-g"><div class="db-col db-main">${main}</div><div class="db-col db-side">${side.join('') || ''}</div></div></div>`;
+  }
+  ['residente', 'inquilino'].forEach(r => {
+    const V = VIEWS[r]; if (!V || !V.inicio) return; const b = V.inicio;
+    V.inicio = function () { const h = b.apply(this, arguments); try { return typeof h === 'string' ? wrapRes(h) : h; } catch (e) { console.warn('tablero residente', e); return h; } };
+  });
+})();
+
+/* =========================================================
+   INTERFAZ CLAYMORPHISM · Paleta Fresco (aprobada · Propuesta 6)
+   - Fondo suave gris-azulado; tarjetas blancas "de plastilina":
+     sombra exterior suave + luz arriba-izquierda + relieve interior.
+   - Mismo radio (20 px) en tarjetas y botones; chips en píldora.
+   - Botones con volumen (relieve interior), campos hundidos.
+   - Solo 2 letras: Outfit (títulos y números) e Inter (texto).
+   - Colores Fresco fijos: marino #0B1F4D, verde #00C27A,
+     sol #FFC53D, coral #FF7A59, azul #7C9CFF.
+   - Versión oscura con el mismo relieve en tonos marinos.
+   - Avatares: cada usuario elige el suyo (Más › Mi avatar) y sale en
+     su inicio y en el cuadro de su casa en la administración.
+   ========================================================= */
+(function () {
+  const st = document.createElement('style'); st.id = 'gw-clay-css';
+  st.textContent = `
+:root{--r:20px;--bg:#EAEFF5;--card:#FFFFFF;--line:#D5DEE9;
+ --clay:9px 9px 22px rgba(11,31,77,.10),-7px -7px 18px rgba(255,255,255,.95),inset -2px -2px 6px rgba(11,31,77,.05),inset 2px 2px 6px rgba(255,255,255,.85);
+ --clay-s:5px 5px 12px rgba(11,31,77,.09),-4px -4px 10px rgba(255,255,255,.9),inset -1px -1px 4px rgba(11,31,77,.04),inset 1px 1px 4px rgba(255,255,255,.8);
+ --clay-b:5px 5px 12px rgba(11,31,77,.20),-3px -3px 10px rgba(255,255,255,.85),inset -3px -3px 6px rgba(0,0,0,.14),inset 3px 3px 6px rgba(255,255,255,.35);
+ --clay-in:inset 3px 3px 7px rgba(11,31,77,.10),inset -3px -3px 7px rgba(255,255,255,.95)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0A1430;--card:#13204A;--line:#22336A;
+ --clay:8px 8px 20px rgba(0,0,0,.45),-5px -5px 14px rgba(124,156,255,.06),inset -2px -2px 6px rgba(0,0,0,.25),inset 2px 2px 6px rgba(255,255,255,.05);
+ --clay-s:4px 4px 10px rgba(0,0,0,.4),-3px -3px 8px rgba(124,156,255,.05),inset 1px 1px 3px rgba(255,255,255,.04);
+ --clay-b:4px 4px 10px rgba(0,0,0,.45),-2px -2px 8px rgba(124,156,255,.06),inset -3px -3px 6px rgba(0,0,0,.25),inset 3px 3px 6px rgba(255,255,255,.18);
+ --clay-in:inset 3px 3px 7px rgba(0,0,0,.4),inset -3px -3px 7px rgba(124,156,255,.06)}}
+:root[data-theme="dark"]{--bg:#0A1430;--card:#13204A;--line:#22336A;
+ --clay:8px 8px 20px rgba(0,0,0,.45),-5px -5px 14px rgba(124,156,255,.06),inset -2px -2px 6px rgba(0,0,0,.25),inset 2px 2px 6px rgba(255,255,255,.05);
+ --clay-s:4px 4px 10px rgba(0,0,0,.4),-3px -3px 8px rgba(124,156,255,.05),inset 1px 1px 3px rgba(255,255,255,.04);
+ --clay-b:4px 4px 10px rgba(0,0,0,.45),-2px -2px 8px rgba(124,156,255,.06),inset -3px -3px 6px rgba(0,0,0,.25),inset 3px 3px 6px rgba(255,255,255,.18);
+ --clay-in:inset 3px 3px 7px rgba(0,0,0,.4),inset -3px -3px 7px rgba(124,156,255,.06)}
+
+body{background:var(--bg)!important;font-family:Inter,system-ui,sans-serif}
+h1,h2,h3,.kpi b,.dc-n,.dt-v,.pin{font-family:Outfit,Inter,sans-serif}
+
+/* Tarjetas de plastilina */
+.card,.item,.kpi,.db-panel,.db-casa,.db-tile,.m6-card,.ez-m,.sv-pro,.sv-serv,.r7-t:not(.r7-sos),.pv-link,.slot6{border:0!important;border-radius:var(--r)!important;background:var(--card)!important;box-shadow:var(--clay)!important}
+.db-panel .item,.db-panel .card,.db-panel .alert,.card .item,.card .card,.sheet .card,.sheet .item,.m6-card .m6-stats span,.slot6{box-shadow:var(--clay-s)!important}
+.item{margin-bottom:12px}
+.kpi{padding:16px 18px!important}
+.alert{border:0!important;border-radius:var(--r)!important;box-shadow:var(--clay-s)!important}
+.db-casa,.db-tile,.item,.kpi,.m6-card .m6-h,.sv-pro,.ez-m,.r7-t{transition:transform 160ms cubic-bezier(.23,1,.32,1),box-shadow 160ms ease}
+@media (hover:hover) and (pointer:fine){.db-casa:hover,.db-tile:hover,button.item:hover,button.kpi:hover,.sv-pro:hover,.ez-m:hover,.r7-t:hover{transform:translateY(-2px)}}
+.db-casa:active,.db-tile:active,button.item:active,button.kpi:active,.ez-m:active,.r7-t:active{transform:scale(.98)}
+.db-casa{border:0!important}
+.db-cnt span,.m6-stats span{background:var(--bg)!important}
+
+/* Mismo radio en botones y tarjetas; botones con volumen */
+.btn{border-radius:var(--r)!important;box-shadow:var(--clay-b)!important;border:0!important}
+.btn.ghost{background:var(--card)!important;box-shadow:var(--clay-s)!important}
+.btn.sec{box-shadow:var(--clay-s)!important}
+.btn:active{box-shadow:var(--clay-in)!important}
+.db-link,.m6-mini,.db-filt button,.m6-cats button,.sv-filtros button{border:0!important;box-shadow:var(--clay-s)!important;border-radius:var(--r)!important}
+.db-filt button.on,.m6-cats button.on,.sv-filtros button.on{background:#0B1F4D!important;color:#fff!important;box-shadow:var(--clay-b)!important}
+.icon-btn{border-radius:14px}
+
+/* Campos hundidos */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea{border:0!important;border-radius:16px!important;background:var(--bg)!important;box-shadow:var(--clay-in)!important}
+.seg{border-radius:var(--r)!important;background:var(--bg)!important;box-shadow:var(--clay-in)!important;border:0!important}
+.seg button.on,.seg .on{border-radius:16px!important;box-shadow:var(--clay-s)!important}
+.chk{border-color:var(--line)}
+
+/* Íconos de color con relieve */
+.mic,.r7-ti,.ti-big,.dt-i,.kpi .ki{box-shadow:inset -2px -2px 5px rgba(0,0,0,.12),inset 2px 2px 5px rgba(255,255,255,.45)!important;border-radius:14px!important}
+
+/* Portadas (hero) marino con relieve */
+.r7-hero,.hero5,.rs-hero{border-radius:24px!important;box-shadow:10px 12px 26px rgba(11,31,77,.28),inset -4px -4px 10px rgba(0,0,0,.25),inset 4px 4px 10px rgba(255,255,255,.08)!important}
+.r7-pago,.r7-est{box-shadow:inset -3px -3px 8px rgba(0,0,0,.12),inset 3px 3px 8px rgba(255,255,255,.4)!important;border-radius:18px!important}
+.r7-pagar{border-radius:18px!important}
+
+/* Barra superior y menú de abajo */
+@media (max-width:1023px){.top{border-radius:0 0 24px 24px!important;box-shadow:0 10px 24px -10px rgba(11,31,77,.45)!important}
+ .nav{left:10px!important;right:10px!important;bottom:calc(8px + env(safe-area-inset-bottom,0px))!important;border-radius:24px!important;border:0!important;box-shadow:var(--clay)!important}}
+@media (min-width:1024px){.top{background:color-mix(in srgb,var(--bg) 88%,transparent)!important;border-bottom:0!important}}
+.nav button.on .ni{box-shadow:var(--clay-b)}
+
+/* Hojas (ventanas) */
+.sheet{border-radius:28px 28px 0 0!important;background:var(--bg)!important}
+@media (min-width:1024px){.sheet{border-radius:28px!important;box-shadow:var(--clay)!important}}
+
+/* Portería: teclado de plastilina */
+.vz-keys button,.vz-key,.vzk button{border:0!important;border-radius:var(--r)!important;background:var(--card)!important;box-shadow:var(--clay)!important}
+.vz-keys button:active,.vz-key:active,.vzk button:active{box-shadow:var(--clay-in)!important}
+.vz-keys .vz-ok{background:#00C27A!important;color:#0B1F4D!important;box-shadow:var(--clay-b)!important}.vz-keys .vz-ok:disabled{opacity:.45}.vz-keys .vz-del{background:#FFE0D8!important;color:#9A2A0F!important}
+.vz-disp{border-radius:var(--r)!important;box-shadow:var(--clay-in)!important;border:0!important;background:var(--bg)!important}
+.vz-res{border-radius:var(--r)!important;box-shadow:var(--clay)!important;border:0!important}
+
+/* Avatares */
+.gw-avbtn{border:0;background:none;padding:0;border-radius:50%;cursor:pointer;display:inline-flex;box-shadow:var(--clay-b)}
+.gw-avgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.gw-avgrid button{border:0;border-radius:var(--r);background:var(--card);box-shadow:var(--clay-s);padding:8px;display:flex;justify-content:center;cursor:pointer;outline:3px solid transparent}
+.gw-avgrid button.on{outline-color:#00C27A}
+.gw-avgrid svg{width:100%;max-width:68px;height:auto;border-radius:50%}
+.db-av svg{border-radius:50%}
+.r7-hero .gw-avbtn{margin-right:10px;vertical-align:middle}
+@media (prefers-reduced-motion:reduce){.db-casa,.db-tile,.item,.kpi,.sv-pro,.ez-m,.r7-t{transition:none!important}}`;
+  document.head.appendChild(st);
+
+  /* ---------- Avatares ilustrados (12) ---------- */
+  const SKIN = ['#F6C9A8', '#E0A97E', '#C68863', '#8D5A3B', '#F2D3B8', '#A86B48'];
+  const HAIR = ['#2B1A12', '#5B3A1E', '#111827', '#8A5A2B', '#C08A3E', '#3F2A1D'];
+  const BGS = ['#D6F5E8', '#FFF0C2', '#DDE6FF', '#FFE0D8', '#EDE3FF', '#D9F3F8'];
+  const SH = ['#00C27A', '#7C9CFF', '#FF7A59', '#FFC53D', '#9B7BFF', '#38BDF8'];
+  window.gwAvatarSVG = function (i) {
+    i = (+i || 0) % 12; const sk = SKIN[i % 6], hr = HAIR[(i * 5) % 6], bg = BGS[i % 6], sh = SH[(i + 2) % 6]; const t = i % 4;
+    const hair = [`<path d="M11 17c0-6 4-9 9-9s9 3 9 9c-2-3-5-4-9-4s-7 1-9 4z" fill="${hr}"/>`,
+      `<path d="M10 19c0-7 4-11 10-11s10 4 10 11v6h-3v-7c-2-2-4-3-7-3s-5 1-7 3v7h-3z" fill="${hr}"/>`,
+      `<circle cx="20" cy="7" r="4" fill="${hr}"/><path d="M11 17c0-6 4-9 9-9s9 3 9 9c-3-2-6-3-9-3s-6 1-9 3z" fill="${hr}"/>`,
+      `<path d="M10 16c1-5 5-8 10-8s9 3 10 8h-20z" fill="${sh}"/><rect x="9" y="15" width="22" height="3" rx="1.5" fill="#0B1F4D"/>`][t];
+    return `<svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" fill="${bg}"/><path d="M6 40c1-8 7-12 14-12s13 4 14 12z" fill="${sh}"/><circle cx="20" cy="19" r="8.5" fill="${sk}"/>${hair}<circle cx="17" cy="20" r="1.1" fill="#0B1F4D"/><circle cx="23" cy="20" r="1.1" fill="#0B1F4D"/><path d="M17.5 23.2c1.4 1.2 3.6 1.2 5 0" fill="none" stroke="#0B1F4D" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+  };
+  const miAv = (s) => { const u = S.user || {}; const inner = u.avatarId != null ? gwAvatarSVG(u.avatarId) : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;background:#D6F5E8;color:#0B1F4D;font:800 ${Math.round(s / 2.8)}px Inter,sans-serif">${esc(iniciales(u.nombre || '?'))}</span>`;
+    return `<button type="button" class="gw-avbtn" onclick="gwElegirAvatar()" aria-label="Cambiar mi avatar" style="width:${s}px;height:${s}px"><span style="width:100%;height:100%;border-radius:50%;overflow:hidden;display:flex">${inner}</span></button>`; };
+  window.gwMiAvatar = miAv;
+  window.gwElegirAvatar = function () {
+    const u = S.user; if (!u) return; const cur = u.avatarId;
+    sheet('Mi avatar', `<p class="note" style="margin-top:0">Elige cómo te verán. Sale en tu inicio y, para la administración, en el cuadro de tu casa.</p>
+      <div class="gw-avgrid">${[...Array(12)].map((_, i) => `<button type="button" class="${cur === i ? 'on' : ''}" aria-label="Avatar ${i + 1}" aria-pressed="${cur === i}" onclick="gwGuardarAvatar(${i})">${gwAvatarSVG(i)}</button>`).join('')}</div>
+      ${cur != null ? `<button class="btn ghost block" style="margin-top:14px" onclick="gwGuardarAvatar(null)">Usar mis iniciales</button>` : ''}`);
+  };
+  window.gwGuardarAvatar = function (i) {
+    const u = S.user; if (!u) return; if (i == null) delete u.avatarId; else u.avatarId = i;
+    const d = DB.usuarios.find(x => x.id === u.id); if (d && d !== u) { if (i == null) delete d.avatarId; else d.avatarId = i; }
+    try { save(); } catch (e) { } closeSheet(); render(); toast('Listo: avatar guardado');
+  };
+  // Avatar en la portada del residente y entrada en "Más"
+  ['residente', 'inquilino', 'admin', 'vigilante', 'cobrador', 'vendedor', 'profesional'].forEach(r => {
+    const V = VIEWS[r]; if (!V) return;
+    if (V.inicio && (r === 'residente' || r === 'inquilino')) { const b = V.inicio; V.inicio = function () { const h = b.apply(this, arguments); if (typeof h !== 'string') return h; return h.replace(/(<section class="r7-hero">[\s\S]*?)<h2>/, (m, a) => a + `<h2 style="display:flex;align-items:center">${miAv(52)}`); }; }
+    if (V.mas) { const b = V.mas; V.mas = function () { const h = b.apply(this, arguments); if (typeof h !== 'string') return h; const it = menuItem('user', 'Mi avatar', 'gwElegirAvatar()'); const k = h.indexOf('</h2>'); return k >= 0 ? h.slice(0, k + 5) + it + h.slice(k + 5) : it + h; }; }
+  });
+})();
+
+/* =========================================================
+   EFECTO CRISTAL (vidrio esmerilado) · v70
+   - Portada del residente y de la administración: en vez del azul
+     marino profundo, un panel de cristal claro y translúcido.
+   - Menú lateral (administración, residente y todos los roles):
+     cristal claro con letras azul marino.
+   - Detrás, manchas suaves de los colores Fresco para que el cristal
+     "refleje" color. Funciona igual en modo oscuro (cristal marino).
+   ========================================================= */
+(function () {
+  const st = document.createElement('style'); st.id = 'gw-cristal-css';
+  st.textContent = `
+:root{--glass:linear-gradient(135deg,rgba(255,255,255,.80),rgba(255,255,255,.46));--glass-bd:rgba(255,255,255,.85);--glass-tx:#0B1F4D;--glass-mut:#4B5B70;--glass-chip:rgba(255,255,255,.62);--glass-chip-bd:rgba(11,31,77,.08);
+ --glass-sh:0 18px 40px -18px rgba(11,31,77,.30),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(11,31,77,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--glass:linear-gradient(135deg,rgba(40,58,120,.62),rgba(19,32,74,.42));--glass-bd:rgba(157,182,255,.22);--glass-tx:#EEF3FF;--glass-mut:#A7B4D3;--glass-chip:rgba(255,255,255,.08);--glass-chip-bd:rgba(255,255,255,.12);--glass-sh:0 18px 40px -18px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12)}}
+:root[data-theme="dark"]{--glass:linear-gradient(135deg,rgba(40,58,120,.62),rgba(19,32,74,.42));--glass-bd:rgba(157,182,255,.22);--glass-tx:#EEF3FF;--glass-mut:#A7B4D3;--glass-chip:rgba(255,255,255,.08);--glass-chip-bd:rgba(255,255,255,.12);--glass-sh:0 18px 40px -18px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12)}
+
+/* Fondo con reflejos de color para que se note el cristal */
+body{background:radial-gradient(circle at 8% 6%,rgba(0,194,122,.20),transparent 36%),radial-gradient(circle at 92% 2%,rgba(124,156,255,.28),transparent 42%),radial-gradient(circle at 60% 55%,rgba(255,197,61,.14),transparent 46%),radial-gradient(circle at 15% 90%,rgba(255,122,89,.12),transparent 40%),var(--bg)!important;background-attachment:fixed!important}
+
+/* Portadas de cristal */
+.r7-hero,.hero5,.rs-hero{background:var(--glass)!important;-webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);border:1px solid var(--glass-bd)!important;box-shadow:var(--glass-sh)!important;color:var(--glass-tx)!important}
+.r7-hero::before,.r7-hero::after,.hero5::before,.hero5::after{opacity:.35!important;filter:hue-rotate(0deg)}
+.r7-hero h2,.hero5 h2,.rs-hero h2,.r7-hero .r7-casa,.hero5 .h5-sub,.r7-hero .r7-top small,.hero5 .h5-top small{color:var(--glass-tx)!important;text-shadow:none!important}
+.r7-hero .r7-top small,.hero5 .h5-top small,.r7-hero .r7-casa,.hero5 .h5-sub{color:var(--glass-mut)!important;opacity:1!important}
+.r7-hero .r7-aa{background:var(--glass-chip)!important;color:var(--glass-tx)!important;border:1px solid var(--glass-chip-bd)!important;box-shadow:none!important}
+.hero5 .h5-st{background:var(--glass-chip)!important;color:var(--glass-tx)!important;box-shadow:inset 0 0 0 1px var(--glass-chip-bd)!important}
+.hero5 .h5-st.bad{background:#FFE0D8!important;color:#9A2A0F!important}.hero5 .h5-st.warn{background:#FFF0C2!important;color:#7A4E00!important}
+.hero5 .h5-stats div{background:var(--glass-chip)!important;box-shadow:inset 0 0 0 1px var(--glass-chip-bd)!important;color:var(--glass-tx)!important}
+.hero5 .h5-stats span{color:var(--glass-mut)!important;opacity:1!important}
+.hero5 .h5-acts button{background:var(--glass-chip)!important;color:var(--glass-tx)!important;box-shadow:inset 0 0 0 1px var(--glass-chip-bd),0 6px 14px -8px rgba(11,31,77,.3)!important}
+@media (hover:hover) and (pointer:fine){.hero5 .h5-acts button:hover{background:rgba(255,255,255,.85)!important}}
+.hero5 .h5-acts .sos{background:#E5484D!important;color:#fff!important}
+.r7-hero .r7-pagar{background:#0B1F4D!important;color:#fff!important;box-shadow:0 10px 22px -12px rgba(11,31,77,.7)!important}
+:root[data-theme="dark"] .r7-hero .r7-pagar{background:#00C27A!important;color:#06231A!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .r7-hero .r7-pagar{background:#00C27A!important;color:#06231A!important}}
+.r7-hero .gw-avbtn{box-shadow:0 6px 14px -6px rgba(11,31,77,.35),0 0 0 3px rgba(255,255,255,.8)}
+
+/* Menú lateral de cristal */
+.sb3{--sb-bg:rgba(255,255,255,.62);--sb-bg2:rgba(255,255,255,.42);--sb-tx:#0B1F4D;--sb-mut:#4B5B70;--sb-line:rgba(11,31,77,.08);--sb-hov:rgba(11,31,77,.05);--sb-act:rgba(0,194,122,.16);--sb-acc:#00A36A;
+ background:linear-gradient(180deg,var(--sb-bg),var(--sb-bg2))!important;-webkit-backdrop-filter:blur(24px) saturate(170%);backdrop-filter:blur(24px) saturate(170%);border-right:1px solid rgba(255,255,255,.8);color:var(--sb-tx)!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sb3{--sb-bg:rgba(30,46,100,.62);--sb-bg2:rgba(13,22,52,.55);--sb-tx:#EEF3FF;--sb-mut:#A7B4D3;--sb-line:rgba(255,255,255,.08);--sb-hov:rgba(255,255,255,.06);--sb-act:rgba(0,194,122,.22);--sb-acc:#4ADE9B;border-right-color:rgba(157,182,255,.15)}}
+:root[data-theme="dark"] .sb3{--sb-bg:rgba(30,46,100,.62);--sb-bg2:rgba(13,22,52,.55);--sb-tx:#EEF3FF;--sb-mut:#A7B4D3;--sb-line:rgba(255,255,255,.08);--sb-hov:rgba(255,255,255,.06);--sb-act:rgba(0,194,122,.22);--sb-acc:#4ADE9B;border-right-color:rgba(157,182,255,.15)}
+.sb3 .sl3{opacity:1;color:var(--sb-tx)}
+.sb3 .sl3.on{color:var(--sb-tx)!important;font-weight:700;box-shadow:inset 0 0 0 1px rgba(0,194,122,.25)}
+.sb3 .sb-q input{background:rgba(255,255,255,.55)!important;border:1px solid var(--sb-line)!important;box-shadow:none!important;color:var(--sb-tx)}
+.sb3 .sb-mk{background:#0B1F4D!important;color:#fff!important}
+.sb3 .sb-av{background:#D6F5E8!important;color:#0B1F4D!important}
+.sb3 .sb-nav{scrollbar-color:rgba(11,31,77,.18) transparent}
+.side{background:var(--glass)!important;color:var(--glass-tx)!important;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+html.sb-open .sb3{box-shadow:0 0 60px rgba(11,31,77,.25)}
+/* Barra superior del teléfono también de cristal */
+@media (max-width:1023px){.top{background:var(--glass)!important;-webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);color:var(--glass-tx)!important;border-bottom:1px solid var(--glass-bd)!important;box-shadow:0 10px 24px -14px rgba(11,31,77,.35)!important}
+ .top *{color:inherit}.top small,.top .tt small{color:var(--glass-mut)!important;opacity:1!important}
+ .top button,.top .icon-btn,.top .lang,.top [class*=lang]{color:var(--glass-tx)!important;border-color:var(--glass-chip-bd)!important;background:var(--glass-chip)!important}
+ .top .badge,.top .nb{color:#0B1F4D!important}}
+@media (prefers-reduced-transparency:reduce){.r7-hero,.hero5,.rs-hero,.sb3{-webkit-backdrop-filter:none;backdrop-filter:none}}`;
   document.head.appendChild(st);
 })();
 
