@@ -3016,7 +3016,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-71';
+const APP_VERSION='2026.11.21-72';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -9328,7 +9328,7 @@ body.gwa-ping .top .badge,body.gwa-ping .top .nb{animation:gwaPing 1.3s ease-out
     if (u.vende) { const n = tiendaDB().pedidos.filter(p => p.vendedorId === u.id && ACT_PED.includes(p.estado)).length; T.push([`go('pedidos')`, 'store', '#D6F5E8', 'Mi tienda', n, n ? 'pedido(s) por atender' : 'Sin pedidos pendientes']); }
     else if (u.ofrece) { const n = (DB.servSol || []).filter(s => s.proId === u.id && SOL_ACT.includes(s.estado)).length; T.push([`go('solicitudes')`, 'tool', '#D6F5E8', 'Mi servicio', n, n ? 'trabajo(s) activos' : 'Sin solicitudes']); }
     else T.push([`go('reservas')`, 'key', '#D6F5E8', 'Mis reservas', rs, rs ? 'próxima(s)' : 'Reserva un área']);
-    T.push([`go('avisos')`, 'bell', '#FFE0D8', 'Sin leer', nl, nl ? 'aviso(s) nuevos' : 'Estás al día']);
+    T.push([`verNotifs()`, 'bell', '#FFE0D8', 'Notificaciones', nl, nl ? 'sin leer · toca para verlas' : 'Estás al día']);
     return `<div class="db-tiles">${T.map(([o, i, c, l, v, s]) => `<button class="db-tile" onclick="${o}"><span class="dt-i" style="background:${c}">${ic(i, 20)}</span><span class="dt-l">${l}</span><span class="dt-v">${v}</span><span class="dt-s">${s}</span></button>`).join('')}</div>`;
   }
   function miCasaLinea() {
