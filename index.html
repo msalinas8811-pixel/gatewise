@@ -1219,7 +1219,7 @@ function vAdmInicio(){
   const den=DB.pases.filter(dentro).length,mes=periodoActual();
   const recaud=sum(DB.pagos.filter(p=>p.estado==='aprobado'&&(p.fechaAprob||p.fecha).slice(0,7)===mes),p=>p.monto);
   const pers=[...Array(6)].map((_,i)=>addMonths(mes,i-5));
-  const pct=pers.map(p=>{const cs=DB.cuotas.filter(c=>c.periodo===p);return cs.length?Math.round(cs.filter(c=>c.estado==='pagado').length/cs.length*100):0});
+  const pct=pers.map(p=>{if(p===mes){const hb=casasHab();const bs=hb.length?hb:DB.casas.filter(c=>cuotasCasa(c.id).length);return bs.length?Math.round(bs.filter(c=>!moraCasa(c.id).length).length/bs.length*100):0}const cs=DB.cuotas.filter(c=>c.periodo===p);return cs.length?Math.round(cs.filter(c=>c.estado==='pagado').length/cs.length*100):0});
   const R_=DB.residencial,pr=miembro('Presidente');let h=heroAdm5();
   if(sol)h+=alertBox('info',`${sol} solicitud(es) de registro`,'Propietarios esperando validación de documentos.',"go('solicitudes')");
   {const nc=DB.cierres.filter(c=>c.estado==='enviado').length;if(nc)h+=alertBox('warn',`${nc} cierre(s) de cobrador por cuadrar`,'Compara el efectivo entregado con los recibos.',"S.cseg='cierres';go('cobros')")}
@@ -3016,7 +3016,7 @@ Object.assign(I18N,{"Planes y precios":"Plans and prices","Precio mensual acorda
 
 
 /* ---------- Versión y actualización ---------- */
-const APP_VERSION='2026.11.21-70';
+const APP_VERSION='2026.11.21-71';
 async function buscarActualizacion(){toast('Buscando la versión más reciente…');try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}setTimeout(()=>{location.href=location.pathname+'?v='+Date.now()},400)}
 const versionHTML=()=>`<p class="note" style="text-align:center;margin-top:18px">GateWise · versión ${APP_VERSION} · <a href="#" onclick="buscarActualizacion();return false" style="color:var(--pri);font-weight:700">Buscar actualización</a></p>`;
 try{if(navigator.serviceWorker){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!window.__gwRecargado){window.__gwRecargado=1;if(!S.user||!document.querySelector('#ov'))location.reload()}})}}catch(e){}
@@ -3322,12 +3322,12 @@ function heroRes5(u){const cid=u.casaId,V=VIEWS[u.rol]||{};let st='';
   if(V.pagos)acts.push(`<button onclick="S.sel=null;go('pagos')">${ic('wallet',21)}<span>Pagar cuota</span></button>`);else if(V.tienda)acts.push(`<button onclick="go('tienda')">${ic('store',21)}<span>Tienda</span></button>`);
   acts.push(`<button class="sos" onclick="S.dseg='emergencia';go('directorio')">${ic('siren',21)}<span>Emergencias</span></button>`);
   return `<section class="hero5"><div><div class="h5-top"><small>${fechaLarga5()}</small>${st}</div><h2><span>${saludo5()}</span>, ${esc(u.nombre.split(' ')[0])}</h2><p class="h5-sub">${u.casaId?esc(casaNom(u.casaId))+' · ':''}${esc(DB.residencial.nombre)}</p></div><div class="h5-acts">${acts.join('')}</div></section>`}
-function heroAdm5(){const R_=DB.residencial,pr=miembro('Presidente'),mes=periodoActual();const cs=DB.cuotas.filter(c=>c.periodo===mes);const pct=cs.length?Math.round(cs.filter(c=>c.estado==='pagado').length/cs.length*100):0;const V=VIEWS[S.user.rol]||{};
+function heroAdm5(){const R_=DB.residencial,pr=miembro('Presidente'),mes=periodoActual();const hab=casasHab();const base=hab.length?hab:DB.casas.filter(c=>cuotasCasa(c.id).length);const alD=base.filter(c=>!moraCasa(c.id).length).length;const pct=base.length?Math.round(alD/base.length*100):0;const V=VIEWS[S.user.rol]||{};
   const acts=[`<button onclick="go('residencial')">${ic('houses',21)}<span>Residencial</span></button>`];
   if(V.reportes)acts.push(`<button onclick="go('reportes')">${ic('doc',21)}<span>Reportes</span></button>`);
   if(V.avisos)acts.push(`<button onclick="go('avisos')">${ic('mega',21)}<span>Avisos</span></button>`);else if(V.pagos)acts.push(`<button onclick="go('pagos')">${ic('wallet',21)}<span>Pagos</span></button>`);
   return `<section class="hero5"><div><div class="h5-top"><small>${fechaLarga5()}</small><span class="h5-st">${ic('shield',13)}<span>Administración</span></span></div><h2><span>${saludo5()}</span>, ${esc(S.user.nombre.split(' ')[0])}</h2><p class="h5-sub">${esc(R_.nombre)} · <span>Presidente</span>: ${esc(pr?pr.nombre:'sin asignar')}</p>
-    <div class="h5-stats"><div><b>${DB.casas.length}</b><span>Casas</span></div><div><b>${portones().length}</b><span>Portones</span></div><div><b>${pct}%</b><span>Al día este mes</span></div></div></div><div class="h5-acts">${acts.join('')}</div></section>`}
+    <div class="h5-stats"><div><b>${DB.casas.length}</b><span>Casas</span></div><div><b>${portones().length}</b><span>Portones</span></div><div title="Casas con residente que no tienen cuotas vencidas"><b>${base.length?pct+'%':'—'}</b><span>Al día · ${alD} de ${base.length}</span></div></div></div><div class="h5-acts">${acts.join('')}</div></section>`}
 /* ---------- Indicadores que se deslizan (FLIP entre renders) ---------- */
 const IND5={};
 function mover5(el,key,x,y,w,h){const p=IND5[key];el.style.width=w+'px';if(h!=null)el.style.height=h+'px';
